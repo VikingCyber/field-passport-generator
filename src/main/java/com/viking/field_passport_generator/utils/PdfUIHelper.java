@@ -1,0 +1,81 @@
+package com.viking.field_passport_generator.utils;
+
+import org.openpdf.text.Document;
+import org.openpdf.text.Element;
+import org.openpdf.text.Font;
+import org.openpdf.text.PageSize;
+import org.openpdf.text.Paragraph;
+import org.openpdf.text.pdf.BaseFont;
+
+
+/**
+ * Утилитарный класс для унификации оформления PDF-паспорта поля.
+ * Реализует стандарты отступов и централизованное управление шрифтами.
+ */
+public final class PdfUIHelper {
+    
+    // Переводим см в пункты (1 см = 28.35f)
+    private static final float CM_TO_PT = 28.35f;
+    
+    // Отступы страницы
+    private static final float MARGIN_LEFT = 3.0f * CM_TO_PT;
+    private static final float MARGIN_RIGHT = 1.5f * CM_TO_PT;
+    private static final float MARGIN_TOP = 2.0f * CM_TO_PT;
+    private static final float MARGIN_BOTTOM = 2.0f * CM_TO_PT;
+    private static final float FIRST_LINE_INDENT = 0.75f * CM_TO_PT;
+
+    // Отступы текста и заголовков
+    private static final float SPACING_AFTER_TITLE = 12f;
+    private static final float SPACING_AFTER_PARAGRAPH = 8f;
+    private static final float SPACING_AFTER_BULLET_POINT = 4f;
+
+    // Шрифты
+    private static Font FONT_TITLE;
+    private static Font FONT_TEXT;
+
+    /**
+     * Закрытый конструктор, чтобы нельзя было создать экземпляр утилитарного класса
+     */
+    private PdfUIHelper() {
+        throw new UnsupportedOperationException("Utility class, constructors are forbidden");
+    }
+
+    static {
+        try {
+            BaseFont bfBold = BaseFont.createFont("fonts/NotoSans-Bold.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+            BaseFont bfReg = BaseFont.createFont("fonts/NotoSans-Regular.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+
+            FONT_TITLE = new Font(bfBold, 12);
+            FONT_TEXT = new Font(bfReg, 12);
+        } catch (Exception e) {
+            FONT_TEXT = new Font(Font.HELVETICA, 12);
+            FONT_TITLE = new Font(Font.HELVETICA, 12, 1);
+            System.err.println("Ошибка загрузки шрифтов: " + e.getMessage());
+        }
+    }
+
+    public static Paragraph createParagraph(String text) {
+        Paragraph p = new Paragraph(text, FONT_TEXT);
+        p.setSpacingAfter(SPACING_AFTER_PARAGRAPH);
+        p.setAlignment(Element.ALIGN_LEFT);
+        return p;
+    }
+
+    public static Paragraph createSectionTitle(String text) {
+        Paragraph p = new Paragraph(text, FONT_TITLE);
+        p.setSpacingAfter(SPACING_AFTER_TITLE);
+        return p;
+    }
+
+    public static Paragraph createBulletPoint(String text) {
+        Paragraph p = new Paragraph("• " + text, FONT_TEXT);
+        p.setIndentationLeft(FIRST_LINE_INDENT);
+        p.setSpacingAfter(SPACING_AFTER_BULLET_POINT);
+        return p;
+    }
+
+    public static Document createDocument() {
+        return new Document(PageSize.A4, MARGIN_LEFT, MARGIN_RIGHT, MARGIN_TOP, MARGIN_BOTTOM);
+    }
+    
+}

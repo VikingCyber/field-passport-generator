@@ -1,0 +1,7 @@
+package com.viking.field_passport_generator.services;
+
+import com.viking.field_passport_generator.models.FieldPassport;
+
+public interface PassportGeneratorService {
+    void generate(FieldPassport passport);
+}
