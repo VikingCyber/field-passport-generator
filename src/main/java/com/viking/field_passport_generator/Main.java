@@ -1,6 +1,7 @@
 package com.viking.field_passport_generator;
 
 import java.util.List;
+import java.util.Scanner;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,36 +14,59 @@ import com.viking.field_passport_generator.services.PdfGeneratorService;
 
 public class Main {
     private static final Logger log = LoggerFactory.getLogger(Main.class);
+    private static final Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
         DataProvider dataProvider = new FileDataProvider();
-        PassportGeneratorService pdfService = new PdfGeneratorService();
-        
-        try {
-            log.info("Запуск генератора паспортов полей...");
+        PassportGeneratorService pdfGeneratorService = new PdfGeneratorService();
 
-            List<FieldPassport> allPassports = dataProvider.getPassportData();
-            log.info("Загружено объектов из файла: {}", allPassports.size());
+        runMenu(dataProvider, pdfGeneratorService);
+    }
 
-            String targetFieldName = "ПС10-01";
-            FieldPassport sample = allPassports.stream()
-                .filter(p -> p.generalInfo().fieldName().equalsIgnoreCase(targetFieldName))
-                .findFirst()
-                .orElse(null);
+    private static void runMenu(DataProvider dataProvider, PassportGeneratorService passportGeneratorService) {
+        while (true) {
+            printMenu();
+            String choice = scanner.nextLine();
 
-            if (sample != null) {
-                log.info("Эталонное поле '{}' успешно найдено.", targetFieldName);
-                log.info("Детали поля: [Подразделение: {}, Площадь: {} га, Культура: {}, Тип семеян: {}]",
-                sample.generalInfo().department(),
-                sample.generalInfo().fieldArea(),
-                sample.generalInfo().rotation().crop(),
-                sample.generalInfo().rotation().reproduction());
-                pdfService.generate(sample);
-            } else {
-                log.error("Поле '{}' не найдено в исходных данных!", targetFieldName);
+            switch (choice) {
+                case "1" -> generateAll(dataProvider, passportGeneratorService);
+                case "2" -> generateOne(dataProvider, passportGeneratorService);
+                case "0" -> {
+                    log.info("Выход из программы...");
+                    return;
+                }
+                default -> System.out.println("Неверный ввод, попробуйте снова.");
             }
-        } catch (Exception e) {
-            log.error("Критический сбой при выполнении скрипта", e);
         }
+    }
+
+    private static void printMenu() {
+        System.out.println("\n---  ГЕНЕРАТОР ПАСПОРТОВ ПОЛЕЙ ---");
+        System.out.println("1. Сгенерировать ВСЕ паспорта");
+        System.out.println("2. Сгенерировать паспорт для конкретного поля (все сезоны)");
+        System.out.println("0. Выход");
+        System.out.print("Выберите опцию: ");
+    }
+
+    private static void generateAll(DataProvider provider, PassportGeneratorService service) {
+        List<FieldPassport> allPassports = provider.getPassportsData();
+        service.generateAll(allPassports);
+    }
+
+    private static void generateOne(DataProvider provider, PassportGeneratorService service) {
+        System.out.println("Введите название поля: ");
+        String name = scanner.nextLine();
+
+        List<FieldPassport> selectedPassports = provider.getPassportsData().stream()
+            .filter(p -> p.generalInfo().fieldName().equalsIgnoreCase(name))
+            .toList();
+
+        if (selectedPassports.isEmpty()) {
+            log.info("Поле не найдено!");
+        } else {
+            log.info("Найдено сезонов для поля " + name + ": " + selectedPassports.size());
+        }
+
+        service.generateAll(selectedPassports);
     }
 }

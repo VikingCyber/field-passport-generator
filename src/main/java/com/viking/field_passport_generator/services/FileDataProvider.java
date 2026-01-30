@@ -17,7 +17,7 @@ public class FileDataProvider implements DataProvider {
         .build();
 
     @Override
-    public List<FieldPassport> getPassportData() {
+    public List<FieldPassport> getPassportsData() {
         try (InputStream is = getClass().getClassLoader().getResourceAsStream("fieldData.json")) {
 
             RawApiResponse response = mapper.readValue(is, RawApiResponse.class);

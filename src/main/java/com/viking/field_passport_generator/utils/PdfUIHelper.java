@@ -1,5 +1,9 @@
 package com.viking.field_passport_generator.utils;
 
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.Locale;
+
 import org.openpdf.text.Document;
 import org.openpdf.text.Element;
 import org.openpdf.text.Font;
@@ -30,8 +34,9 @@ public final class PdfUIHelper {
     private static final float SPACING_AFTER_BULLET_POINT = 4f;
 
     // Шрифты
-    private static Font FONT_TITLE;
-    private static Font FONT_TEXT;
+    private static final Font FONT_TITLE;
+    private static final Font FONT_TEXT;
+
 
     /**
      * Закрытый конструктор, чтобы нельзя было создать экземпляр утилитарного класса
@@ -41,17 +46,25 @@ public final class PdfUIHelper {
     }
 
     static {
+        Font tempTitle;
+        Font tempText;
+
         try {
             BaseFont bfBold = BaseFont.createFont("fonts/NotoSans-Bold.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
             BaseFont bfReg = BaseFont.createFont("fonts/NotoSans-Regular.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
 
-            FONT_TITLE = new Font(bfBold, 12);
-            FONT_TEXT = new Font(bfReg, 12);
+            tempTitle = new Font(bfBold, 12);
+            tempText = new Font(bfReg, 12);
+
         } catch (Exception e) {
-            FONT_TEXT = new Font(Font.HELVETICA, 12);
-            FONT_TITLE = new Font(Font.HELVETICA, 12, 1);
+            tempTitle = new Font(Font.HELVETICA, 12, 1);
+            tempText = new Font(Font.HELVETICA, 12);
             System.err.println("Ошибка загрузки шрифтов: " + e.getMessage());
         }
+
+        FONT_TITLE = tempTitle;
+        FONT_TEXT = tempText;
+
     }
 
     public static Paragraph createParagraph(String text) {
@@ -76,6 +89,13 @@ public final class PdfUIHelper {
 
     public static Document createDocument() {
         return new Document(PageSize.A4, MARGIN_LEFT, MARGIN_RIGHT, MARGIN_TOP, MARGIN_BOTTOM);
+    }
+
+    public static String formatArea(double area) {
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.US);
+        symbols.setDecimalSeparator('.');
+        DecimalFormat df = new DecimalFormat("0.##", symbols);
+        return df.format(area);
     }
     
 }
