@@ -2,7 +2,9 @@ package com.viking.field_passport_generator.utils;
 
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
+import java.time.Duration;
 import java.util.Locale;
+import java.util.Objects;
 
 import org.openpdf.text.Document;
 import org.openpdf.text.Element;
@@ -96,6 +98,21 @@ public final class PdfUIHelper {
         symbols.setDecimalSeparator('.');
         DecimalFormat df = new DecimalFormat("0.##", symbols);
         return df.format(area);
+    }
+
+    public static String formatDuration(Duration duration) {
+        Objects.requireNonNull(duration);
+
+        if (duration.isNegative()) {
+            throw new IllegalArgumentException("Отрицательные длительности не поддерживаются: " + duration);
+
+        }
+
+        return String.format("%d:%02d:%02d",
+            duration.toHours(),
+            duration.toMinutesPart(),
+            duration.toSecondsPart()
+        );
     }
     
 }
