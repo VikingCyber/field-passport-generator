@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 
@@ -18,6 +17,7 @@ import com.viking.field_passport_generator.models.OperationTableRow;
 
 public class WorkDataMapper {
     private static final ZoneId TIMEZONE = ZoneId.of("Asia/Krasnoyarsk");
+    private static final long AGGREGATION_THRESHOLD_TIME = 48L * 60 * 60 * 1000;
 
     public List<OperationTableRow> mapToTableRow(
         List<RawOperationData> rawData, String targetFieldName, String passportYear
@@ -27,56 +27,60 @@ public class WorkDataMapper {
         }
         
         int targetYear = Integer.parseInt(passportYear);
-        List<RawOperationData> sortedOperationData = rawData.stream()
+
+        List<RawOperationData> filteredOperationData = rawData.stream()
             .filter(r -> r.isValid() && r.operation() != null)
-            .filter(r -> r.area() > 0)
+            .filter(r -> r.area() != null && r.area() > 0)
             .filter(r -> targetFieldName.equals(r.geoZone()))
             .filter(r -> {
                 ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(r.startTime()), TIMEZONE);
                 return zdt.getYear() == targetYear;
             })
-            .sorted(Comparator.comparing(RawOperationData::startTime))
+            .sorted(Comparator.comparing(RawOperationData::operation).thenComparing(RawOperationData::startTime))
             .collect(Collectors.toList());
 
-        if (sortedOperationData.isEmpty()) {
+        if (filteredOperationData.isEmpty()) {
             return Collections.emptyList();
         }
 
-        List<List<RawOperationData>> operationGroups = groupByOperation(sortedOperationData);
+        List<List<RawOperationData>> operationGroups = groupByOperation(filteredOperationData);
 
-        List<OperationTableRow> tableRows = operationGroups.stream()
-            .map(this::convertGroupToTableRow)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-
-        Collections.reverse(tableRows);
-
-        return tableRows;
+        return operationGroups.stream()
+                .map(this::convertGroupToTableRow)
+                .sorted(Comparator.comparing(OperationTableRow::start).reversed())
+                .collect(Collectors.toList());
     }
 
     private List<List<RawOperationData>> groupByOperation(List<RawOperationData> sortedData) {
         List<List<RawOperationData>> groups = new ArrayList<>();
-        
-        if (sortedData.isEmpty()) {
-            throw new IllegalArgumentException("Ошибка список отсортированных операций пришёл пустым!");
-        }
+        if (sortedData.isEmpty()) return groups;
 
         List<RawOperationData> currentGroup = new ArrayList<>();
-        String currentOperation = null;
 
         for (RawOperationData data : sortedData) {
-            if (currentGroup.isEmpty() || !data.operation().equals(currentOperation)) {
-                if (!currentGroup.isEmpty()) {
-                    groups.add(new ArrayList<>(currentGroup));
-                    currentGroup.clear();
-                }
-                currentOperation = data.operation();
+            if (currentGroup.isEmpty()) {
+                currentGroup.add(data);
+                continue;
             }
-            currentGroup.add(data);
+
+            RawOperationData last = currentGroup.getLast();
+
+            boolean sameOp = data.operation().equals(last.operation());
+
+
+            long timeGap = data.startTime() - last.endTime();
+            boolean isWithinWindow = timeGap <= AGGREGATION_THRESHOLD_TIME;
+
+            if (sameOp && isWithinWindow) {
+                currentGroup.add(data);
+            } else {
+                groups.add(new ArrayList<>(currentGroup));
+                currentGroup.clear();
+                currentGroup.add(data);
+            }
         }
-        if (!currentGroup.isEmpty()) {
-            groups.add(new ArrayList<>(currentGroup));
-        }
+
+        groups.add(new ArrayList<>(currentGroup));
 
         return groups;
     }
@@ -96,7 +100,7 @@ public class WorkDataMapper {
         long minStart = Long.MAX_VALUE;
         long maxEnd = Long.MIN_VALUE;
 
-        String operationName = group.get(0).operation();
+        String operationName = group.getFirst().operation();
         for (RawOperationData data : group) {
             totalArea += (data.area() != null) ? data.area() : 0.0;
             totalActualArea += (data.validHa() != null) ? data.validHa() : 0.0;
@@ -131,7 +135,5 @@ public class WorkDataMapper {
             productivity,
             finalAvgSpeed
         );
-
     }
-
 }

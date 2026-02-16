@@ -13,9 +13,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.viking.field_passport_generator.models.OperationTableRow;
 import org.openpdf.text.Document;
 import org.openpdf.text.DocumentException;
 
+import org.openpdf.text.PageSize;
+import org.openpdf.text.Paragraph;
 import org.openpdf.text.pdf.PdfWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -82,6 +85,13 @@ public class PdfGeneratorService implements PassportGeneratorService {
         document.add(PdfUIHelper.createBulletPoint(passport.generalInfo().rotation().crop()));
         document.add(PdfUIHelper.createBulletPoint(passport.generalInfo().rotation().variety()));
         document.add(PdfUIHelper.createBulletPoint(passport.generalInfo().rotation().reproduction()));
+
+        document.setPageSize(PageSize.A4.rotate());
+        document.newPage();
+        document.add(PdfUIHelper.createSectionTitle("Раздел 2. Выполненные работы"));
+        List<OperationTableRow> rows = passport.operations();
+        document.add(PdfUIHelper.createOperationsTable(rows));
+
         log.info("Данные поля успешно добавлены в документ");
     }
 
