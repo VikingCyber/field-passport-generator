@@ -35,3 +35,4 @@ build/
 ### Custom ###
 output/
 src/main/resources/fieldData.json
+src/main/resources/operationsData.json

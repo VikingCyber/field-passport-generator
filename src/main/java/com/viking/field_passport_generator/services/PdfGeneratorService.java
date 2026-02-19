@@ -1,14 +1,24 @@
 package com.viking.field_passport_generator.services;
 
+import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import com.viking.field_passport_generator.models.OperationTableRow;
 import org.openpdf.text.Document;
 import org.openpdf.text.DocumentException;
 
+import org.openpdf.text.PageSize;
+import org.openpdf.text.Paragraph;
 import org.openpdf.text.pdf.PdfWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +33,8 @@ public class PdfGeneratorService implements PassportGeneratorService {
     @Override
     public void generate(FieldPassport passport) {
         String fieldName = passport.generalInfo().fieldName();
-        String saveFileName = fieldName.replaceAll("[^a-zA-Zа-яА-Я0-9\\-]", "_") + ".pdf";
+        String year = String.valueOf(passport.generalInfo().year());
+        String saveFileName = fieldName.replaceAll("[^a-zA-Zа-яА-Я0-9]", "_") + "_" + year + ".pdf";
         Path outputDir = Paths.get("output");
         Path filePath = outputDir.resolve(saveFileName);
 
@@ -31,40 +42,100 @@ public class PdfGeneratorService implements PassportGeneratorService {
 
         Document document = PdfUIHelper.createDocument();
 
-        try {
+        try (FileOutputStream fos = new FileOutputStream(filePath.toFile());
+                BufferedOutputStream bos = new BufferedOutputStream(fos)) {
+
             if (Files.notExists(filePath)) {
                 Files.createDirectories(outputDir);
                 log.debug("Создана отсутствующая директория: {}", outputDir);
             }
 
-            PdfWriter.getInstance(document, new FileOutputStream(filePath.toFile()));
+            PdfWriter.getInstance(document, bos);
 
             document.open();
             log.debug("PDF документ открыт");
+            fillDocument(document, passport);            
+            document.close();
 
-            document.add(PdfUIHelper.createSectionTitle("Раздел 1. Общая информация."));
-
-            document.add(PdfUIHelper.createParagraph("1.1. Подразделение: " + passport.generalInfo().department()));
-            document.add(PdfUIHelper.createParagraph("1.2. Наименование: " + passport.generalInfo().fieldName()));
-            document.add(PdfUIHelper.createParagraph("1.3. Текущая площадь: " + passport.generalInfo().fieldArea() + " Га"));
-
-            document.add(PdfUIHelper.createParagraph("1.4. Севооборот в " + passport.generalInfo().year() + " году:"));
-
-            document.add(PdfUIHelper.createBulletPoint(passport.generalInfo().rotation().crop()));
-            document.add(PdfUIHelper.createBulletPoint(passport.generalInfo().rotation().variety()));
-            document.add(PdfUIHelper.createBulletPoint(passport.generalInfo().rotation().reproduction()));
-
-            log.info("Данные поля успешно добавлены в документ");
-
-        } catch (DocumentException | IOException e) {
-            log.error("Критический сбой при создании PDF: {}", e.getMessage(), e);
+        } catch (DocumentException e) {
+            log.error("Ошибка структуры PDF (iText) для {}: {}", fieldName, e.getMessage());
+            throw new RuntimeException("Ошибка форматирования PDF", e);
+        } catch (IOException e) {
+            log.error("Ошибка ввода-вывода для {}: {}", saveFileName, e.getMessage());
+            throw new RuntimeException("Ошибка файловой системы", e);
         } finally {
             if (document != null && document.isOpen()) {
                 document.close();
-                log.debug("PDF документ закрыт и сохранен на диск");
+                log.warn("Документ закрыт аварийно в блоке finally.");
             }
         }
         
         log.info("==> Генерация завершена. Путь: {}", filePath.toAbsolutePath());
+    }
+
+    private void fillDocument(Document document, FieldPassport passport) {
+        document.add(PdfUIHelper.createSectionTitle("Раздел 1. Общая информация."));
+
+        document.add(PdfUIHelper.createParagraph("1.1. Подразделение: " + passport.generalInfo().department()));
+        document.add(PdfUIHelper.createParagraph("1.2. Наименование: " + passport.generalInfo().fieldName()));
+        document.add(PdfUIHelper.createParagraph("1.3. Текущая площадь: " + PdfUIHelper.formatArea(passport.generalInfo().fieldArea()) + " Га"));
+
+        document.add(PdfUIHelper.createParagraph("1.4. Севооборот в " + passport.generalInfo().year() + " году:"));
+
+        document.add(PdfUIHelper.createBulletPoint(passport.generalInfo().rotation().crop()));
+        document.add(PdfUIHelper.createBulletPoint(passport.generalInfo().rotation().variety()));
+        document.add(PdfUIHelper.createBulletPoint(passport.generalInfo().rotation().reproduction()));
+
+        document.setPageSize(PageSize.A4.rotate());
+        document.newPage();
+        document.add(PdfUIHelper.createSectionTitle("Раздел 2. Выполненные работы"));
+        List<OperationTableRow> rows = passport.operations();
+        document.add(PdfUIHelper.createOperationsTable(rows));
+
+        log.info("Данные поля успешно добавлены в документ");
+    }
+
+    @Override
+    public void generateAll(List<FieldPassport> passports) {
+        if (passports == null || passports.isEmpty()) {
+            log.warn("Список полей пуст, генерировать нечего.");
+            return;
+        }
+
+        long startTime = System.currentTimeMillis();
+        int total = passports.size();
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger processedCount = new AtomicInteger(0);
+
+        log.info("==> Начало массовой генерации (всего полей: {})", passports.size());
+
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<Future<Boolean>> futures = passports.stream().map(p -> executor.submit(() -> {
+                try {
+                    generate(p);
+                    successCount.incrementAndGet();
+                    return true;
+                } catch (Exception e) {
+                    return false;
+                } finally {
+                    int current = processedCount.incrementAndGet();
+                    if (current % 50 == 0 || current == total) {
+                        log.info("Прогресс: {}/{} документов готово.", current, total);
+                    }
+                }
+            }))
+            .toList();
+
+            for (Future<Boolean> f : futures) {
+                try {
+                    f.get();
+                } catch (InterruptedException | ExecutionException e) {
+                    log.error("Поток завершился с критической ошибкой: {}", e.getCause().getMessage());
+                }
+            }
+            long duration = System.currentTimeMillis() - startTime;
+            log.info("==> Массовая генерация завершена! Время: {} мс. Успех {}/{}",
+                duration, successCount.get(), total);
+        }
     }
 }

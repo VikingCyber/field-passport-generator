@@ -6,7 +6,7 @@ import com.viking.field_passport_generator.models.FieldPassport;
 
 public class ApiDataProvider implements DataProvider {
     @Override
-    public List<FieldPassport> getPassportData() {
+    public List<FieldPassport> getPassportsData() {
         return null;
     }
 }
