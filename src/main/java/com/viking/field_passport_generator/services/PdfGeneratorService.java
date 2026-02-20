@@ -3,9 +3,9 @@ package com.viking.field_passport_generator.services;
 import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -18,7 +18,6 @@ import org.openpdf.text.Document;
 import org.openpdf.text.DocumentException;
 
 import org.openpdf.text.PageSize;
-import org.openpdf.text.Paragraph;
 import org.openpdf.text.pdf.PdfWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,33 +28,38 @@ import com.viking.field_passport_generator.utils.PdfUIHelper;
 public class PdfGeneratorService implements PassportGeneratorService {
 
     private static final Logger log = LoggerFactory.getLogger(PdfGeneratorService.class);
+    private static final long MIN_REQUIRED_SPACE_BYTES = 5 * 1024 * 1024; // 5 МБ
     
     @Override
     public void generate(FieldPassport passport) {
         String fieldName = passport.generalInfo().fieldName();
         String year = String.valueOf(passport.generalInfo().year());
         String saveFileName = fieldName.replaceAll("[^a-zA-Zа-яА-Я0-9]", "_") + "_" + year + ".pdf";
-        Path outputDir = Paths.get("output");
+        Path outputDir = Path.of("output");
         Path filePath = outputDir.resolve(saveFileName);
 
         log.info("==> Старт генерации PDF для поля: {} (Файл: {})", fieldName, saveFileName);
 
-        Document document = PdfUIHelper.createDocument();
+        checkStorageSafety(outputDir);
+
+        try {
+            Files.createDirectories(outputDir);
+        } catch (IOException e) {
+            log.error("Критическая ошибка: не удалось подготовить директорию {}. Причина: {}",
+                outputDir.toAbsolutePath(), e.getMessage());
+            throw new RuntimeException("Не удалось создать директорию", e);
+        }
+
 
         try (FileOutputStream fos = new FileOutputStream(filePath.toFile());
-                BufferedOutputStream bos = new BufferedOutputStream(fos)) {
-
-            if (Files.notExists(filePath)) {
-                Files.createDirectories(outputDir);
-                log.debug("Создана отсутствующая директория: {}", outputDir);
-            }
+                BufferedOutputStream bos = new BufferedOutputStream(fos);
+                Document document = PdfUIHelper.createDocument()) {
 
             PdfWriter.getInstance(document, bos);
 
             document.open();
             log.debug("PDF документ открыт");
-            fillDocument(document, passport);            
-            document.close();
+            fillDocument(document, passport);
 
         } catch (DocumentException e) {
             log.error("Ошибка структуры PDF (iText) для {}: {}", fieldName, e.getMessage());
@@ -63,14 +67,26 @@ public class PdfGeneratorService implements PassportGeneratorService {
         } catch (IOException e) {
             log.error("Ошибка ввода-вывода для {}: {}", saveFileName, e.getMessage());
             throw new RuntimeException("Ошибка файловой системы", e);
-        } finally {
-            if (document != null && document.isOpen()) {
-                document.close();
-                log.warn("Документ закрыт аварийно в блоке finally.");
-            }
         }
         
         log.info("==> Генерация завершена. Путь: {}", filePath.toAbsolutePath());
+    }
+
+    private void checkStorageSafety(Path outputDir) {
+        try {
+            Files.createDirectories(outputDir);
+
+            if (!Files.isWritable(outputDir)) {
+                throw new IOException("Отсутствуют права на запись");
+            }
+            FileStore store = Files.getFileStore(outputDir);
+            if (store.getUsableSpace() < MIN_REQUIRED_SPACE_BYTES) {
+                throw new IOException("Недостаточно свободного места на диске");
+            }
+        } catch (IOException e) {
+            log.error("Директория: {} не готова к работе: {}", outputDir.toAbsolutePath(), e.getMessage());
+            throw new RuntimeException("Подготовка хранилища не удалась", e);
+        }
     }
 
     private void fillDocument(Document document, FieldPassport passport) {
