@@ -2,6 +2,7 @@ package com.viking.field_passport_generator.models;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record OperationTableRow(
     String operationName,
@@ -12,7 +13,10 @@ public record OperationTableRow(
     double fuelCost,
     Duration workDuration,
     double productivity,
-    double averageSpeed
+    double averageSpeed,
+    List<TmcItem> tmcItemList
 ) {
-    
+    public boolean hasTmcList() {
+        return tmcItemList != null && !tmcItemList.isEmpty();
+    }
 }

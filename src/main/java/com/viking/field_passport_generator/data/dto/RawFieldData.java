@@ -1,4 +1,4 @@
-package com.viking.field_passport_generator.dto;
+package com.viking.field_passport_generator.data.dto;
 
 public record RawFieldData(
     String department,

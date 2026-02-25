@@ -36,3 +36,4 @@ build/
 output/
 src/main/resources/fieldData.json
 src/main/resources/operationsData.json
+src/main/resources/tmc.json
