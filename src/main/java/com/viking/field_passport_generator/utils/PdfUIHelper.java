@@ -7,7 +7,8 @@ import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 
 import com.viking.field_passport_generator.models.OperationTableRow;
 import com.viking.field_passport_generator.models.TmcItem;
@@ -253,16 +254,10 @@ public final class PdfUIHelper {
     }
 
     public static PdfPTable createTmcContainer(List<OperationTableRow> rows) {
-        PdfPTable tmcTable = createTmcTable(rows);
-
-        // Проверяем, есть ли данные
-        if (tmcTable.getRows().isEmpty()) {
-            return null;
-        }
 
         // Контейнер с заголовком
         PdfPTable container = new PdfPTable(1);
-        container.setWidthPercentage(100);
+        container.setHorizontalAlignment(Element.ALIGN_LEFT);
         container.setKeepTogether(true);
 
         // Заголовок
@@ -271,11 +266,21 @@ public final class PdfUIHelper {
         titleCell.addElement(PdfUIHelper.createParagraph("Расход ТМЦ:"));
         container.addCell(titleCell);
 
-        // Таблица
-        PdfPCell tableCell = new PdfPCell();
-        tableCell.setBorder(Rectangle.NO_BORDER);
-        tableCell.addElement(tmcTable);
-        container.addCell(tableCell);
+        boolean hasTmc = rows != null && rows.stream()
+                .flatMap(op -> op.tmcItemList() == null ? Stream.empty() : op.tmcItemList().stream())
+                .anyMatch(item -> true);
+
+
+        PdfPCell contentCell = new PdfPCell();
+        contentCell.setBorder(Rectangle.NO_BORDER);
+
+        if (hasTmc) {
+            contentCell.addElement(createTmcTable(rows));
+        } else {
+            Paragraph noDataMsg = new Paragraph("Нет данных о расходе ТМЦ", FONT_TEXT);
+            contentCell.addElement(noDataMsg);
+        }
+        container.addCell(contentCell);
 
         return container;
     }

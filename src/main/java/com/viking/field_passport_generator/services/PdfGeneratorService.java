@@ -111,9 +111,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
         document.add(PdfUIHelper.createOperationsTable(rows));
 
         PdfPTable tmcContainer = PdfUIHelper.createTmcContainer(rows);
-        if (tmcContainer != null) {
-            document.add(tmcContainer);
-        }
+        document.add(tmcContainer);
 
         log.info("Данные поля успешно добавлены в документ");
     }
