@@ -266,9 +266,7 @@ public final class PdfUIHelper {
         titleCell.addElement(PdfUIHelper.createParagraph("Расход ТМЦ:"));
         container.addCell(titleCell);
 
-        boolean hasTmc = rows != null && rows.stream()
-                .flatMap(op -> op.tmcItemList() == null ? Stream.empty() : op.tmcItemList().stream())
-                .anyMatch(item -> true);
+        boolean hasTmc = rows != null && rows.stream().anyMatch(OperationTableRow::hasTmcList);
 
 
         PdfPCell contentCell = new PdfPCell();

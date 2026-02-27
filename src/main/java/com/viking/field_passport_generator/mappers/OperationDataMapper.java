@@ -62,7 +62,7 @@ public class OperationDataMapper {
 
             boolean sameOp = curr.getOperation().equals(prev.getOperation());
             long timeGap = curr.getStartTime() - prev.getEndTime();
-            boolean withinWindow = timeGap <+ AGGREGATION_THRESHOLD_TIME;
+            boolean withinWindow = timeGap <= AGGREGATION_THRESHOLD_TIME;
 
             if (sameOp && withinWindow) {
                 current.add(curr);

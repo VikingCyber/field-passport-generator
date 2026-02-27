@@ -9,10 +9,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class GroupedOperationData {
@@ -59,9 +56,10 @@ public class GroupedOperationData {
         double productivity = (hours > 0) ? totalActualArea / hours : 0.0;
 
         List<TmcItem> tmcItems = tmcAmounts.entrySet().stream()
-            .filter(e -> dictionary.contains(e.getKey()))
-            .map(e -> dictionary.createTmcItem(e.getKey(), e.getValue()))
-            .filter(Objects::nonNull).collect(Collectors.toList());
+                .map(e -> dictionary.createTmcItem(e.getKey(), e.getValue()))
+                .flatMap(Optional::stream)
+                .toList();
+
 
         return new OperationTableRow(
             operationName,

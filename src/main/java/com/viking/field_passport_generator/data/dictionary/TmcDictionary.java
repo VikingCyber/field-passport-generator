@@ -5,6 +5,7 @@ import com.viking.field_passport_generator.models.TmcItem;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class TmcDictionary {
@@ -16,22 +17,24 @@ public class TmcDictionary {
     }
 
     public String getName(Long id) {
-        TmcDictItem item = tmcDictionary.get(id);
-        return item != null ? item.name() : "ТМЦ-" + id;
+        return Optional.ofNullable(tmcDictionary.get(id))
+                .map(TmcDictItem::name)
+                .orElse("н/д");
     }
 
     public String getUnit(Long id) {
-        TmcDictItem item = tmcDictionary.get(id);
-        return item != null ? item.measureName() : "Error unknow measure!";
+        return Optional.ofNullable(tmcDictionary.get(id))
+                .map(TmcDictItem::measureName)
+                .orElse("н/д");
     }
 
     public boolean contains(Long id) {
         return tmcDictionary.containsKey(id);
     }
 
-    public TmcItem createTmcItem(Long id, Double amount) {
-        if (!contains(id)) return null;
-        return new TmcItem(id, getName(id), amount, getUnit(id));
+    public Optional<TmcItem> createTmcItem(Long id, Double amount) {
+        return Optional.ofNullable(tmcDictionary.get(id))
+                .map(item -> new TmcItem(id, item.name(), amount, item.measureName()));
     }
 
     public int size() {

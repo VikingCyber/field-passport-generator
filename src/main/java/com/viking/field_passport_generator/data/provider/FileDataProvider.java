@@ -34,7 +34,7 @@ public class FileDataProvider implements DataProvider {
                 InputStream operationIs = getClass().getClassLoader().getResourceAsStream("operationsData.json");
                 InputStream tmcIs = getClass().getClassLoader().getResourceAsStream("tmc.json")) {
             
-            if (fieldsIs == null || operationIs == null) {
+            if (fieldsIs == null || operationIs == null || tmcIs == null) {
                 throw new RuntimeException("Один из файлов с данными не найден в ресурсах");
             }
 
