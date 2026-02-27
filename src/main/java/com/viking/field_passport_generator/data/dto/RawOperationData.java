@@ -28,8 +28,9 @@ public class RawOperationData {
     private String driver;
 
     private static final Pattern TMC_ID_PATTERN = Pattern.compile("_(\\d+)$");
+    private static final String TMC_PREFIX = "fact_qwn_";
 
-    private Map<String, Object> tmcFields = new HashMap<>();
+    private final Map<String, Object> tmcFields = new HashMap<>();
 
     public RawOperationData() {
 
@@ -37,7 +38,7 @@ public class RawOperationData {
 
     @JsonAnySetter
     public void setDynamicField(String key, Object value) {
-        if (key.startsWith("fact_qwn_")) {
+        if (key.startsWith(TMC_PREFIX)) {
             tmcFields.put(key, value);
         }
     }
@@ -47,10 +48,9 @@ public class RawOperationData {
         Map<Long, Double> result = new HashMap<>();
         tmcFields.forEach((key, value) -> {
             Matcher matcher = TMC_ID_PATTERN.matcher(key);
-            if (matcher.find()) {
+            if (matcher.find() && value instanceof Number number) {
                 Long id = Long.parseLong(matcher.group(1));
-                Double amount = ((Number) value).doubleValue();
-                result.put(id, amount);
+                result.put(id, number.doubleValue());
             }
         });
         return result;

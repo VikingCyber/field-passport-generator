@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 
 public class TmcDictionary {
     private final Map<Long, TmcDictItem> tmcDictionary;
+    private static final String NOT_AVAILABLE = "н/д";
 
     public TmcDictionary(List<TmcDictItem> items) {
         this.tmcDictionary = items.stream()
@@ -19,13 +20,13 @@ public class TmcDictionary {
     public String getName(Long id) {
         return Optional.ofNullable(tmcDictionary.get(id))
                 .map(TmcDictItem::name)
-                .orElse("н/д");
+                .orElse(NOT_AVAILABLE);
     }
 
     public String getUnit(Long id) {
         return Optional.ofNullable(tmcDictionary.get(id))
                 .map(TmcDictItem::measureName)
-                .orElse("н/д");
+                .orElse(NOT_AVAILABLE);
     }
 
     public boolean contains(Long id) {

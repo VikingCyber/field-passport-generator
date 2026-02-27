@@ -1,8 +1,6 @@
 package com.viking.field_passport_generator.mappers;
 
-import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -53,6 +51,11 @@ public class OperationDataMapper {
 
     private List<GroupedOperationData> groupByOperation(List<RawOperationData> sortedData) {
         List<GroupedOperationData> groups = new ArrayList<>();
+
+        if (sortedData == null || sortedData.isEmpty()) {
+            return groups;
+        }
+
         GroupedOperationData current = new GroupedOperationData();
         current.add(sortedData.getFirst());
 
