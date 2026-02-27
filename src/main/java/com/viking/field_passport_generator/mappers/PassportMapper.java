@@ -6,7 +6,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.viking.field_passport_generator.dto.RawFieldData;
+import com.viking.field_passport_generator.data.dto.RawFieldData;
 import com.viking.field_passport_generator.models.CropRotation;
 import com.viking.field_passport_generator.models.FieldPassport;
 import com.viking.field_passport_generator.models.GeneralInfo;

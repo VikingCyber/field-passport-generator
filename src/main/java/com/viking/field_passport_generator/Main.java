@@ -7,8 +7,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.viking.field_passport_generator.models.FieldPassport;
-import com.viking.field_passport_generator.services.DataProvider;
-import com.viking.field_passport_generator.services.FileDataProvider;
+import com.viking.field_passport_generator.data.provider.DataProvider;
+import com.viking.field_passport_generator.data.provider.FileDataProvider;
 import com.viking.field_passport_generator.services.PassportGeneratorService;
 import com.viking.field_passport_generator.services.PdfGeneratorService;
 

@@ -1,4 +1,4 @@
-package com.viking.field_passport_generator.services;
+package com.viking.field_passport_generator.data.provider;
 
 import java.util.List;
 

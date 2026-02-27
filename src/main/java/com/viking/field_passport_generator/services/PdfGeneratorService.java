@@ -18,6 +18,7 @@ import org.openpdf.text.Document;
 import org.openpdf.text.DocumentException;
 
 import org.openpdf.text.PageSize;
+import org.openpdf.text.pdf.PdfPTable;
 import org.openpdf.text.pdf.PdfWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +40,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
         Path filePath = outputDir.resolve(saveFileName);
 
         log.info("==> Старт генерации PDF для поля: {} (Файл: {})", fieldName, saveFileName);
+        log.debug("Генерация файла: {} для года {}", saveFileName, passport.generalInfo().year());
 
         checkStorageSafety(outputDir);
 
@@ -107,6 +109,9 @@ public class PdfGeneratorService implements PassportGeneratorService {
         document.add(PdfUIHelper.createSectionTitle("Раздел 2. Выполненные работы"));
         List<OperationTableRow> rows = passport.operations();
         document.add(PdfUIHelper.createOperationsTable(rows));
+
+        PdfPTable tmcContainer = PdfUIHelper.createTmcContainer(rows);
+        document.add(tmcContainer);
 
         log.info("Данные поля успешно добавлены в документ");
     }
