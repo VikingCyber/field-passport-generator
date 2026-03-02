@@ -1,0 +1,16 @@
+package com.viking.field_passport_generator.utils;
+
+import java.io.InputStream;
+import java.util.Objects;
+
+
+public final class ResourceReader {
+
+    private ResourceReader() {/* Utility class */}
+
+    @SuppressWarnings("resource")
+    public static InputStream readAsStream(String path) {
+        InputStream is = ResourceReader.class.getClassLoader().getResourceAsStream(path);
+        return Objects.requireNonNull(is, () -> "Required resource not found: " + path);
+    }
+}

@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 
-import com.viking.field_passport_generator.data.aggregator.GroupedOperationData;
+import com.viking.field_passport_generator.data.aggregator.OperationAccumulator;
 import com.viking.field_passport_generator.data.dictionary.TmcDictionary;
 import com.viking.field_passport_generator.data.dto.RawOperationData;
 import com.viking.field_passport_generator.models.OperationTableRow;
@@ -40,7 +40,7 @@ public class OperationDataMapper {
 
         if (filtered.isEmpty()) return Collections.emptyList();
 
-        List<GroupedOperationData> groups = groupByOperation(filtered);
+        List<OperationAccumulator> groups = groupByOperation(filtered);
 
         return groups.stream()
                 .map(g -> g.toTableRow(tmcDictionary))
@@ -49,14 +49,14 @@ public class OperationDataMapper {
 
     }
 
-    private List<GroupedOperationData> groupByOperation(List<RawOperationData> sortedData) {
-        List<GroupedOperationData> groups = new ArrayList<>();
+    private List<OperationAccumulator> groupByOperation(List<RawOperationData> sortedData) {
+        List<OperationAccumulator> groups = new ArrayList<>();
 
         if (sortedData == null || sortedData.isEmpty()) {
             return groups;
         }
 
-        GroupedOperationData current = new GroupedOperationData();
+        OperationAccumulator current = new OperationAccumulator();
         current.add(sortedData.getFirst());
 
         for (int i = 1; i < sortedData.size(); i++) {
@@ -71,7 +71,7 @@ public class OperationDataMapper {
                 current.add(curr);
             } else {
                 groups.add(current);
-                current = new GroupedOperationData();
+                current = new OperationAccumulator();
                 current.add(curr);
             }
         }

@@ -3,6 +3,9 @@ package com.viking.field_passport_generator;
 import java.util.List;
 import java.util.Scanner;
 
+import com.viking.field_passport_generator.data.aggregator.FieldDataAggregator;
+import com.viking.field_passport_generator.mappers.OperationDataMapper;
+import com.viking.field_passport_generator.utils.JsonDataParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,13 +20,14 @@ public class Main {
     private static final Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
-        // 1. Инициализируем компоненты
-        DataProvider dataProvider = new FileDataProvider();
+        OperationDataMapper operationMapper = new OperationDataMapper();
+        FieldDataAggregator dataAggregator = new FieldDataAggregator(operationMapper);
+        JsonDataParser jsonParser = new JsonDataParser();
+        DataProvider dataProvider = new FileDataProvider(jsonParser, dataAggregator);
         PassportGeneratorService pdfService = new PdfGeneratorService();
 
         log.info("Приложение запущено.");
 
-        // 2. Запускаем меню
         runMenu(dataProvider, pdfService);
     }
 
