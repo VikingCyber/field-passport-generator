@@ -7,8 +7,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.viking.field_passport_generator.data.aggregator.FieldDataAggregator;
 import com.viking.field_passport_generator.data.dictionary.TmcDictionary;
 import com.viking.field_passport_generator.data.dto.*;
+import com.viking.field_passport_generator.utils.JsonDataParser;
+import com.viking.field_passport_generator.utils.ResourceReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,52 +26,26 @@ import com.viking.field_passport_generator.utils.YearUtils;
 
 public class FileDataProvider implements DataProvider {
     private static final Logger log = LoggerFactory.getLogger(FileDataProvider.class);
+    private final JsonDataParser jsonDataParser = new JsonDataParser();
+    private final ResourceReader resourceReader = new ResourceReader();
+    private final FieldDataAggregator aggregator = new FieldDataAggregator();
     private final OperationDataMapper operationDataMapper = new OperationDataMapper();
-    private final ObjectMapper mapper = JsonMapper.builder()
-        .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-        .build();
+
 
     @Override
     public List<FieldPassport> getPassportsData() {
-        try (InputStream fieldsIs = getClass().getClassLoader().getResourceAsStream("fieldData.json");
-                InputStream operationIs = getClass().getClassLoader().getResourceAsStream("operationsData.json");
-                InputStream tmcIs = getClass().getClassLoader().getResourceAsStream("tmc.json")) {
-            
-            if (fieldsIs == null || operationIs == null || tmcIs == null) {
-                throw new RuntimeException("Один из файлов с данными не найден в ресурсах");
-            }
+        try (InputStream fieldsIs = resourceReader.readAsStream("fieldData.json");
+                InputStream operationIs = resourceReader.readAsStream("operationsData.json");
+                InputStream tmcIs = resourceReader.readAsStream("tmc.json")) {
 
-            RawApiResponse fieldsResponse = mapper.readValue(fieldsIs, RawApiResponse.class);
-            RawOperationsResponse opsResponse = mapper.readValue(operationIs, RawOperationsResponse.class);
-            RawGoodsResponse goodsResponse = mapper.readValue(tmcIs, RawGoodsResponse.class);
+            RawApiResponse fieldsResponse = jsonDataParser.parse(fieldsIs, RawApiResponse.class);
+            RawOperationsResponse opsResponse = jsonDataParser.parse(operationIs, RawOperationsResponse.class);
+            RawGoodsResponse goodsResponse = jsonDataParser.parse(tmcIs, RawGoodsResponse.class);
 
-            TmcDictionary tmcDictionary = new TmcDictionary(goodsResponse.data());
-            log.info("Загружено {} ТМЦ из справочника", tmcDictionary.size());
-
-            Map<String, List<RawOperationData>> opsByFieldName = opsResponse.data().stream()
-                .filter(op -> op.getGeoZone() != null)
-                .collect(Collectors.groupingBy(RawOperationData::getGeoZone));
-
-            return fieldsResponse.data().stream()
-                    .map(rawField -> buildPassport(rawField, opsByFieldName, tmcDictionary))
-                    .collect(Collectors.toList());
+            return aggregator.aggregate(fieldsResponse, opsResponse, goodsResponse);
         } catch (Exception e) {
             log.error("Критическая ошибка при чтении JSON файлов: {}", e.getMessage());
             throw new RuntimeException("Ошибка загрузки данных из файла", e);
         }
     }
-
-    private FieldPassport buildPassport(RawFieldData rawField,
-                                        Map<String, List<RawOperationData>> opsByFieldName,
-                                        TmcDictionary tmcDictionary) {
-        String fieldName = rawField.field();
-        String passportYear = YearUtils.extractYear(rawField.crop());
-        List<RawOperationData> fieldOps = opsByFieldName.getOrDefault(fieldName, Collections.emptyList());
-        List<OperationTableRow> tableRows = operationDataMapper.mapToTableRow(
-                fieldOps, fieldName, passportYear, tmcDictionary
-        );
-
-        return PassportMapper.mapToDomain(rawField, tableRows);
-    }
-    
 }

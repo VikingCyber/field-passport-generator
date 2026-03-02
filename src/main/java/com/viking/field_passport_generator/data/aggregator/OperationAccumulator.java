@@ -10,9 +10,8 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
-import java.util.stream.Collectors;
 
-public class GroupedOperationData {
+public class OperationAccumulator {
     private static final ZoneId TIMEZONE = ZoneId.of("Asia/Krasnoyarsk");
 
     private String operationName;
@@ -26,7 +25,7 @@ public class GroupedOperationData {
     private double speedWeightedSum;
     private long totalSpeedDuration;
 
-    private Map<Long, Double> tmcAmounts = new HashMap<>();
+    private final Map<Long, Double> tmcAmounts = new HashMap<>();
 
     public void add(RawOperationData data) {
         operationName = data.getOperation();
