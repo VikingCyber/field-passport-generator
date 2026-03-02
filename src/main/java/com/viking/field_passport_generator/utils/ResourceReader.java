@@ -4,10 +4,13 @@ import java.io.InputStream;
 import java.util.Objects;
 
 
-@SuppressWarnings("resource")
-public class ResourceReader {
-    public InputStream readAsStream(String path) {
-        InputStream is = getClass().getClassLoader().getResourceAsStream(path);
-        return Objects.requireNonNull(is, () -> "Required resource file not found: " + path);
+public final class ResourceReader {
+
+    private ResourceReader() {/* Utility class */}
+
+    @SuppressWarnings("resource")
+    public static InputStream readAsStream(String path) {
+        InputStream is = ResourceReader.class.getClassLoader().getResourceAsStream(path);
+        return Objects.requireNonNull(is, () -> "Required resource not found: " + path);
     }
 }

@@ -14,7 +14,11 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class FieldDataAggregator {
-    private final OperationDataMapper operationMapper = new OperationDataMapper();
+    private final OperationDataMapper operationMapper;
+
+    public FieldDataAggregator(OperationDataMapper operationMapper) {
+        this.operationMapper = operationMapper;
+    }
 
     public List<FieldPassport> aggregate(RawApiResponse fieldsResponse,
                                          RawOperationsResponse opsResponse,
