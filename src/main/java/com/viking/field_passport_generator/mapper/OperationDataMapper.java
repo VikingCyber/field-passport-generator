@@ -1,4 +1,4 @@
-package com.viking.field_passport_generator.mappers;
+package com.viking.field_passport_generator.mapper;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
 import com.viking.field_passport_generator.data.aggregator.OperationAccumulator;
 import com.viking.field_passport_generator.data.dictionary.TmcDictionary;
 import com.viking.field_passport_generator.data.dto.RawOperationData;
-import com.viking.field_passport_generator.models.OperationTableRow;
+import com.viking.field_passport_generator.model.OperationTableRow;
 
 public class OperationDataMapper {
     private static final ZoneId TIMEZONE = ZoneId.of("Asia/Krasnoyarsk");
