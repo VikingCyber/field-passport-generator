@@ -1,32 +1,52 @@
 package com.viking.field_passport_generator;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.List;
 import java.util.Scanner;
 
+import com.viking.field_passport_generator.config.AppConfig;
 import com.viking.field_passport_generator.data.aggregator.FieldDataAggregator;
-import com.viking.field_passport_generator.mappers.OperationDataMapper;
-import com.viking.field_passport_generator.utils.JsonDataParser;
+import com.viking.field_passport_generator.http.ImageLoader;
+import com.viking.field_passport_generator.mapper.NoteMapper;
+import com.viking.field_passport_generator.mapper.OperationDataMapper;
+import com.viking.field_passport_generator.service.ImageCacheService;
+import com.viking.field_passport_generator.service.ImageSyncService;
+import com.viking.field_passport_generator.util.JsonDataParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.viking.field_passport_generator.models.FieldPassport;
+import com.viking.field_passport_generator.model.FieldPassport;
 import com.viking.field_passport_generator.data.provider.DataProvider;
 import com.viking.field_passport_generator.data.provider.FileDataProvider;
-import com.viking.field_passport_generator.services.PassportGeneratorService;
-import com.viking.field_passport_generator.services.PdfGeneratorService;
+import com.viking.field_passport_generator.service.PassportGeneratorService;
+import com.viking.field_passport_generator.service.PdfGeneratorService;
 
 public class Main {
     private static final Logger log = LoggerFactory.getLogger(Main.class);
     private static final Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
+        AppConfig appConfig = new AppConfig();
+        JsonDataParser jsonDataParser = new JsonDataParser();
+
+        HttpClient httpClient = HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+
+        ImageLoader imageLoader = new ImageLoader(httpClient, appConfig);
+        ImageCacheService cacheService = new ImageCacheService(imageLoader, appConfig);
+        ImageSyncService syncService = new ImageSyncService(cacheService, jsonDataParser);
         OperationDataMapper operationMapper = new OperationDataMapper();
-        FieldDataAggregator dataAggregator = new FieldDataAggregator(operationMapper);
+        NoteMapper noteMapper = new NoteMapper();
+        FieldDataAggregator dataAggregator = new FieldDataAggregator(operationMapper, noteMapper, cacheService);
         JsonDataParser jsonParser = new JsonDataParser();
         DataProvider dataProvider = new FileDataProvider(jsonParser, dataAggregator);
-        PassportGeneratorService pdfService = new PdfGeneratorService();
+        PassportGeneratorService pdfService = new PdfGeneratorService(cacheService::getImageBytes);
 
         log.info("Приложение запущено.");
+//        syncService.warmUp("notesData.json");
 
         runMenu(dataProvider, pdfService);
     }
@@ -54,7 +74,7 @@ public class Main {
 
     private static void printMenu() {
         System.out.println("\n" + "=".repeat(30));
-        System.out.println("   ГЕНЕРАТОР ПАСПОРТОВ ПОЛЕЙ");
+        System.out.println("ГЕНЕРАТОР ПАСПОРТОВ ПОЛЕЙ");
         System.out.println("=".repeat(30));
         System.out.println("1. Сгенерировать ВСЕ паспорта (все поля и сезоны)");
         System.out.println("2. Сгенерировать паспорта конкретного поля");
@@ -64,7 +84,7 @@ public class Main {
 
     private static void generateAll(DataProvider provider, PassportGeneratorService service) {
         log.info("Загрузка данных для массовой генерации...");
-        List<FieldPassport> all = provider.getPassportsData(); // Теперь возвращает List<FieldPassport>
+        List<FieldPassport> all = provider.getPassportsData();
         service.generateAll(all);
     }
 

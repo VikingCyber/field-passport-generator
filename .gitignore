@@ -37,3 +37,7 @@ output/
 src/main/resources/fieldData.json
 src/main/resources/operationsData.json
 src/main/resources/tmc.json
+src/main/resources/notesData.json
+src/main/resources/application.yml
+src/main/resources/ids_for_payload.json
+cache
