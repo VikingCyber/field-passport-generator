@@ -56,9 +56,16 @@ public class ImageLoader {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
-                return parseLinkResponse(response.body());
-            } else {
-                log.error("API вернул ошибку {}: {}", response.statusCode(), response.body());
+                Map<String, String> links = parseLinkResponse(response.body());
+
+                if (links.isEmpty()) {
+                    log.warn("API found NO images for this batch of {} IDs. Moving on...", ids.size());
+                } else if (links.size() < ids.size()) {
+                    log.info("API partially matched: {}/{} images found.", links.size(), ids.size());
+                } else {
+                    log.info("API match: All {} images found!", ids.size());
+                }
+                return links;
             }
         } catch (JsonProcessingException e) {
             log.error("Json Serialization Error: {}", e.getMessage());
@@ -83,8 +90,10 @@ public class ImageLoader {
     }
 
     public byte[] downloadBytes(String url) {
+        log.debug("Скачивание файла по ссылке: {}", url);
+        String encodedUrl = url.replace(" ", "%20");
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
+                .uri(URI.create(encodedUrl))
                 .headers("User-Agent", userAgent)
                 .timeout(Duration.ofSeconds(10))
                 .GET()
@@ -95,6 +104,8 @@ public class ImageLoader {
             if (response.statusCode() == 200) {
                 byte[] data = response.body();
                 return (data != null && data.length > 1024) ? data : null;
+            } else {
+                log.warn("Server response code: {} for file: {}", response.statusCode(), encodedUrl);
             }
         } catch (Exception e) {
             log.error("Error downloading file: {}", e.getMessage());

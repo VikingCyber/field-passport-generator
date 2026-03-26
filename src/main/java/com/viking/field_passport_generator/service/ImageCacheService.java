@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ImageCacheService {
     private final ImageLoader loader;
@@ -26,34 +27,63 @@ public class ImageCacheService {
     }
 
     public void preloadImages(Set<String> allIds) {
-        List<String> ImgToDownload = allIds.stream()
+        List<String> imgToDownload = allIds.stream()
                 .filter(id -> Files.notExists(cachePath.resolve(id + ".jpg")))
                 .toList();
 
-        if (ImgToDownload.isEmpty()) {
+        if (imgToDownload.isEmpty()) {
             log.info("Кэш актуален (все {} фото на месте).", allIds.size());
             return;
         }
 
-        log.info("В кэше не хватает {} фото. Начинаю загрузку...", ImgToDownload.size());
+        AtomicInteger totalLinksFound = new AtomicInteger(0);
+        AtomicInteger totalDownloaded = new AtomicInteger(0);
 
-        Map<String, String> links = loader.fetchDownloadUrls(ImgToDownload);
+        log.info("=== Synchronization started : {} photos ====", imgToDownload.size());
 
-        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            links.forEach((id, url) -> executor.submit(() -> {
-                try {
-                    semaphore.acquire();
-                    byte[] data = loader.downloadBytes(url);
-                    if (data != null) {
-                        Files.write(cachePath.resolve(id + ".jpg"), data);
+        for (int i = 0; i < imgToDownload.size(); i += 50) {
+            List<String> batch = imgToDownload.subList(i, Math.min(i + 50, imgToDownload.size()));
+            Map<String, String> links = loader.fetchDownloadUrls(batch);
+
+            totalLinksFound.addAndGet(links.size());
+
+            if (links.isEmpty()) {
+                log.debug("Batch {}-{}: Links not found", i, i + batch.size());
+                continue;
+            }
+
+            try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                links.forEach((id, url) -> executor.submit(() -> {
+                    try {
+                        semaphore.acquire();
+                        byte[] data = loader.downloadBytes(url);
+                        if (data != null) {
+                            Files.write(cachePath.resolve(id + ".jpg"), data);
+                            totalDownloaded.incrementAndGet();
+                        }
+                    } catch (IOException e) {
+                        log.error("Error recording file on disk {}: {}", id, e.getMessage());
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("Interrupted while downloading image: {}: {}", id, e.getMessage());
+                    } finally {
+                        semaphore.release();
                     }
-                } catch (InterruptedException | IOException e) {
-                    log.error("Ошибка загрузки {}: {}", id, e.getMessage());
-                } finally {
-                    semaphore.release();
-                }
-            }));
+                }));
+            }
         }
+
+        int missingInApi = imgToDownload.size() - totalLinksFound.get();
+        int failedDownloads = totalLinksFound.get() - totalDownloaded.get();
+
+        log.info("=== Отчет по прогреву кэша ===");
+        log.info("Всего не хватало:   {}", imgToDownload.size());
+        log.info("Найдено ссылок:    {}", totalLinksFound.get());
+        log.info("Успешно скачано:   {}", totalDownloaded.get());
+        log.info("--- Проблемы ---");
+        log.info("Отсутствуют в API: {} (записи без фото)", missingInApi);
+        log.info("Ошибка загрузки:   {} (битые ссылки/404)", failedDownloads);
+        log.info("==============================");
     }
 
     public byte[] getImageBytes(String id) {

@@ -46,7 +46,7 @@ public class Main {
         PassportGeneratorService pdfService = new PdfGeneratorService(cacheService::getImageBytes);
 
         log.info("Приложение запущено.");
-//        syncService.warmUp("notesData.json");
+        syncService.warmUp("notesData.json");
 
         runMenu(dataProvider, pdfService);
     }
