@@ -1,12 +1,10 @@
 package com.viking.field_passport_generator.mapper;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 
@@ -16,8 +14,13 @@ import com.viking.field_passport_generator.data.dto.RawOperationData;
 import com.viking.field_passport_generator.model.OperationTableRow;
 
 public class OperationDataMapper {
-    private static final ZoneId TIMEZONE = ZoneId.of("Asia/Krasnoyarsk");
-    private static final long AGGREGATION_THRESHOLD_TIME = 48L * 60 * 60 * 1000;
+    private final ZoneId timezone;
+    private final long aggregationThresholdMs;
+
+    public OperationDataMapper(ZoneId timezone, Duration threshold) {
+        this.timezone = Objects.requireNonNull(timezone, "Timezone must not be null");
+        this.aggregationThresholdMs = Objects.requireNonNull(threshold, "Threshold must not be null").toMillis();
+    }
 
     public List<OperationTableRow> mapToTableRow(
             List<RawOperationData> rawData,
@@ -31,7 +34,7 @@ public class OperationDataMapper {
                 .filter(r -> r.getArea() != null && r.getArea() > 0)
                 .filter(r -> targetFieldName.equals(r.getGeoZone()))
                 .filter(r -> {ZonedDateTime zdt = ZonedDateTime.ofInstant(
-                        Instant.ofEpochMilli(r.getStartTime()), TIMEZONE);
+                        Instant.ofEpochMilli(r.getStartTime()), timezone);
                     return zdt.getYear() == targetYear;
                 })
                 .sorted(Comparator.comparing(RawOperationData::getOperation)
@@ -56,7 +59,7 @@ public class OperationDataMapper {
             return groups;
         }
 
-        OperationAccumulator current = new OperationAccumulator();
+        OperationAccumulator current = new OperationAccumulator(timezone);
         current.add(sortedData.getFirst());
 
         for (int i = 1; i < sortedData.size(); i++) {
@@ -65,13 +68,13 @@ public class OperationDataMapper {
 
             boolean sameOp = curr.getOperation().equals(prev.getOperation());
             long timeGap = curr.getStartTime() - prev.getEndTime();
-            boolean withinWindow = timeGap <= AGGREGATION_THRESHOLD_TIME;
+            boolean withinWindow = timeGap <= aggregationThresholdMs;
 
             if (sameOp && withinWindow) {
                 current.add(curr);
             } else {
                 groups.add(current);
-                current = new OperationAccumulator();
+                current = new OperationAccumulator(timezone);
                 current.add(curr);
             }
         }

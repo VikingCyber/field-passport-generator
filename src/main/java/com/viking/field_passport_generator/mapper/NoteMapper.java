@@ -12,8 +12,12 @@ import java.time.ZoneId;
 import java.util.*;
 
 public class NoteMapper {
-    private static final ZoneId TIMEZONE = ZoneId.of("Asia/Krasnoyarsk");
+    private final ZoneId timezone;
     private static final Logger log = LoggerFactory.getLogger(NoteMapper.class);
+
+    public NoteMapper(ZoneId timezone) {
+        this.timezone = Objects.requireNonNull(timezone, "Timezone must not be null");
+    }
 
     public NoteSection map(List<RawNote> rawNotes, String passportYear) {
         if (rawNotes == null || rawNotes.isEmpty()) {
@@ -23,7 +27,7 @@ public class NoteMapper {
         int targetYear = Integer.parseInt(passportYear);
         List<RawNote> filteredNotes = new ArrayList<>();
         for (RawNote note : rawNotes) {
-            int noteYear = note.createdAt().atZoneSameInstant(TIMEZONE).getYear();
+            int noteYear = note.createdAt().atZoneSameInstant(timezone).getYear();
             if (noteYear == targetYear) {
                 filteredNotes.add(note);
             }
@@ -47,14 +51,14 @@ public class NoteMapper {
 
             LocalDateTime localUpdated = null;
             if (rawNote.updatedAt() != null) {
-                localUpdated = rawNote.updatedAt().atZoneSameInstant(TIMEZONE).toLocalDateTime();
+                localUpdated = rawNote.updatedAt().atZoneSameInstant(timezone).toLocalDateTime();
             }
 
             NoteTableRow noteRow = new NoteTableRow(
                     noteIndex,
                     rawNote.title(),
                     rawNote.text(),
-                    rawNote.createdAt().atZoneSameInstant(TIMEZONE).toLocalDateTime(),
+                    rawNote.createdAt().atZoneSameInstant(timezone).toLocalDateTime(),
                     localUpdated
             );
             noteTableRows.add(noteRow);

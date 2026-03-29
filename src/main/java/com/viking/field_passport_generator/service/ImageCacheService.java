@@ -21,9 +21,9 @@ public class ImageCacheService {
     private final Logger log = LoggerFactory.getLogger(ImageCacheService.class);
     private final Semaphore semaphore = new Semaphore(10);
 
-    public ImageCacheService(ImageLoader loader, AppConfig appConfig) {
+    public ImageCacheService(ImageLoader loader, Path cachePath) {
         this.loader = loader;
-        this.cachePath = Path.of(appConfig.getString("app.cache-dir"));
+        this.cachePath = cachePath;
     }
 
     public void preloadImages(Set<String> allIds) {

@@ -1,11 +1,14 @@
 package com.viking.field_passport_generator;
 
 import java.net.http.HttpClient;
+import java.nio.file.Path;
 import java.time.Duration;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Scanner;
 
 import com.viking.field_passport_generator.config.AppConfig;
+import com.viking.field_passport_generator.config.AppContainer;
 import com.viking.field_passport_generator.data.aggregator.FieldDataAggregator;
 import com.viking.field_passport_generator.http.ImageLoader;
 import com.viking.field_passport_generator.mapper.NoteMapper;
@@ -28,27 +31,11 @@ public class Main {
 
     public static void main(String[] args) {
         AppConfig appConfig = new AppConfig();
-        JsonDataParser jsonDataParser = new JsonDataParser();
+        AppContainer container = new AppContainer(appConfig);
+        log.info("Application Started.");
+        container.getSyncService().warmUp("data/notesData.json");
 
-        HttpClient httpClient = HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
-
-        ImageLoader imageLoader = new ImageLoader(httpClient, appConfig);
-        ImageCacheService cacheService = new ImageCacheService(imageLoader, appConfig);
-        ImageSyncService syncService = new ImageSyncService(cacheService, jsonDataParser);
-        OperationDataMapper operationMapper = new OperationDataMapper();
-        NoteMapper noteMapper = new NoteMapper();
-        FieldDataAggregator dataAggregator = new FieldDataAggregator(operationMapper, noteMapper, cacheService);
-        JsonDataParser jsonParser = new JsonDataParser();
-        DataProvider dataProvider = new FileDataProvider(jsonParser, dataAggregator);
-        PassportGeneratorService pdfService = new PdfGeneratorService(cacheService::getImageBytes);
-
-        log.info("Приложение запущено.");
-        syncService.warmUp("notesData.json");
-
-        runMenu(dataProvider, pdfService);
+        runMenu(container.getDataProvider(), container.getPdfService());
     }
 
     private static void runMenu(DataProvider dataProvider, PassportGeneratorService pdfService) {

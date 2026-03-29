@@ -6,10 +6,10 @@ import java.io.IOException;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -35,12 +35,15 @@ import com.viking.field_passport_generator.util.PdfUIHelper;
 
 public class PdfGeneratorService implements PassportGeneratorService {
 
-    private final Function<String, byte[]> imageProvider;
     private static final Logger log = LoggerFactory.getLogger(PdfGeneratorService.class);
-    private static final long MIN_REQUIRED_SPACE_BYTES = 50 * 1024 * 1024; // 50 МБ
+    private final Function<String, byte[]> imageProvider;
+    private final long minRequiredSpaceBytes;
+    private final Path outputDir;
 
-    public PdfGeneratorService(Function<String, byte[]> imageProvider) {
+    public PdfGeneratorService(Function<String, byte[]> imageProvider, long minRequiredSpaceBytes, Path outputDir) {
         this.imageProvider = imageProvider;
+        this.minRequiredSpaceBytes = minRequiredSpaceBytes;
+        this.outputDir = Objects.requireNonNull(outputDir, "OutputDir must not be null");
     }
 
 
@@ -49,7 +52,6 @@ public class PdfGeneratorService implements PassportGeneratorService {
         String fieldName = passport.generalInfo().fieldName();
         String year = String.valueOf(passport.generalInfo().year());
         String saveFileName = fieldName.replaceAll("[^a-zA-Zа-яА-Я0-9]", "_") + "_" + year + ".pdf";
-        Path outputDir = Path.of("output");
         Path filePath = outputDir.resolve(saveFileName);
 
         log.info("==> Старт генерации PDF для поля: {} (Файл: {})", fieldName, saveFileName);
@@ -94,8 +96,9 @@ public class PdfGeneratorService implements PassportGeneratorService {
             if (!Files.isWritable(outputDir)) {
                 throw new IOException("Отсутствуют права на запись");
             }
+
             FileStore store = Files.getFileStore(outputDir);
-            if (store.getUsableSpace() < MIN_REQUIRED_SPACE_BYTES) {
+            if (store.getUsableSpace() < minRequiredSpaceBytes) {
                 throw new IOException("Недостаточно свободного места на диске");
             }
         } catch (IOException e) {

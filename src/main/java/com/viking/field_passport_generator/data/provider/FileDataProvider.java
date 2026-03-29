@@ -26,10 +26,10 @@ public class FileDataProvider implements DataProvider {
 
     @Override
     public List<FieldPassport> getPassportsData() {
-        try (InputStream fieldsIs = ResourceReader.readAsStream("fieldData.json");
-                InputStream operationIs = ResourceReader.readAsStream("operationsData.json");
-                InputStream tmcIs = ResourceReader.readAsStream("tmc.json");
-                InputStream notesIs = ResourceReader.readAsStream("notesData.json")) {
+        try (InputStream fieldsIs = ResourceReader.readAsStream("data/fieldData.json");
+             InputStream operationIs = ResourceReader.readAsStream("data/operationsData.json");
+             InputStream tmcIs = ResourceReader.readAsStream("data/tmc.json");
+             InputStream notesIs = ResourceReader.readAsStream("data/notesData.json")) {
 
             RawApiResponse fieldsResponse = jsonDataParser.parse(fieldsIs, RawApiResponse.class);
             RawOperationsResponse opsResponse = jsonDataParser.parse(operationIs, RawOperationsResponse.class);
@@ -38,7 +38,7 @@ public class FileDataProvider implements DataProvider {
 
             return aggregator.aggregate(fieldsResponse, opsResponse, goodsResponse, notesResponse);
         } catch (Exception e) {
-            e.printStackTrace(); // ВЫВЕДЕТ ТОЧНУЮ ПРИЧИНУ В КОНСОЛЬ
+            e.printStackTrace();
             log.error("Детали Jackson: {}", e.getMessage());
             throw new RuntimeException("Ошибка парсинга", e);
         }

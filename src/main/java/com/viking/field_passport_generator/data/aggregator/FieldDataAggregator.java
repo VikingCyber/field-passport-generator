@@ -18,13 +18,10 @@ import java.util.stream.Collectors;
 public class FieldDataAggregator {
     private final OperationDataMapper operationMapper;
     private final NoteMapper noteMapper;
-    private final ImageCacheService cacheService;
 
-    public FieldDataAggregator(OperationDataMapper operationMapper, NoteMapper noteMapper,
-                               ImageCacheService cacheService) {
+    public FieldDataAggregator(OperationDataMapper operationMapper, NoteMapper noteMapper) {
         this.operationMapper = operationMapper;
         this.noteMapper = noteMapper;
-        this.cacheService = cacheService;
     }
 
     public List<FieldPassport> aggregate(RawApiResponse fieldsResponse,

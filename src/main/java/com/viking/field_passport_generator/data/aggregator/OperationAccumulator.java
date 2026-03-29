@@ -12,7 +12,11 @@ import java.time.ZoneId;
 import java.util.*;
 
 public class OperationAccumulator {
-    private static final ZoneId TIMEZONE = ZoneId.of("Asia/Krasnoyarsk");
+    private final ZoneId timezone;
+
+    public OperationAccumulator(ZoneId timezone) {
+        this.timezone = Objects.requireNonNull(timezone, "Timezone must not be null");
+    }
 
     private String operationName;
     private long minStart = Long.MAX_VALUE;
@@ -62,8 +66,8 @@ public class OperationAccumulator {
 
         return new OperationTableRow(
             operationName,
-            LocalDateTime.ofInstant(Instant.ofEpochMilli(minStart), TIMEZONE),
-            LocalDateTime.ofInstant(Instant.ofEpochMilli(maxEnd), TIMEZONE),
+            LocalDateTime.ofInstant(Instant.ofEpochMilli(minStart), timezone),
+            LocalDateTime.ofInstant(Instant.ofEpochMilli(maxEnd), timezone),
             totalArea,
             totalActualArea,
             totalFuelLiters,

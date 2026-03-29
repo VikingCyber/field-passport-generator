@@ -17,7 +17,7 @@ public class ImageSyncService {
     }
 
     public void warmUp(String notesJsonPath) {
-        InputStream is = getClass().getClassLoader().getResourceAsStream("notesData.json");
+        InputStream is = getClass().getClassLoader().getResourceAsStream(notesJsonPath);
         RawNotesResponse notes = parser.parse(is, RawNotesResponse.class);
 
         Set<String> allIds = notes.data().stream()
