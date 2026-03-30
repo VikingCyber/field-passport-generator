@@ -2,27 +2,29 @@ package com.viking.field_passport_generator.data.aggregator;
 
 import com.viking.field_passport_generator.data.dictionary.TmcDictionary;
 import com.viking.field_passport_generator.data.dto.*;
-import com.viking.field_passport_generator.mappers.OperationDataMapper;
-import com.viking.field_passport_generator.mappers.PassportMapper;
-import com.viking.field_passport_generator.models.FieldPassport;
-import com.viking.field_passport_generator.models.OperationTableRow;
-import com.viking.field_passport_generator.utils.YearUtils;
+import com.viking.field_passport_generator.mapper.NoteMapper;
+import com.viking.field_passport_generator.mapper.OperationDataMapper;
+import com.viking.field_passport_generator.mapper.PassportMapper;
+import com.viking.field_passport_generator.model.FieldPassport;
+import com.viking.field_passport_generator.model.NoteSection;
+import com.viking.field_passport_generator.model.OperationTableRow;
+import com.viking.field_passport_generator.util.YearUtils;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class FieldDataAggregator {
     private final OperationDataMapper operationMapper;
+    private final NoteMapper noteMapper;
 
-    public FieldDataAggregator(OperationDataMapper operationMapper) {
+    public FieldDataAggregator(OperationDataMapper operationMapper, NoteMapper noteMapper) {
         this.operationMapper = operationMapper;
+        this.noteMapper = noteMapper;
     }
 
     public List<FieldPassport> aggregate(RawApiResponse fieldsResponse,
                                          RawOperationsResponse opsResponse,
-                                         RawGoodsResponse goodsResponse) {
+                                         RawGoodsResponse goodsResponse, RawNotesResponse notesResponse) {
 
         TmcDictionary tmcDictionary = new TmcDictionary(goodsResponse.data());
 
@@ -30,14 +32,25 @@ public class FieldDataAggregator {
                 .filter(op -> op.getGeoZone() != null)
                 .collect(Collectors.groupingBy(RawOperationData::getGeoZone));
 
+        Map<String, List<RawNote>> notesByFieldId = new HashMap<>();
+        for (RawNote note : notesResponse.data()) {
+            List<String> sources = note.sources();
+            if (sources != null) {
+                for (String fieldId : sources) {
+                    notesByFieldId.computeIfAbsent(fieldId, k -> new ArrayList<>()).add(note);
+                }
+            }
+        }
+
         return fieldsResponse.data().stream()
-                .map(rawField -> buildPassport(rawField, opsByFieldName, tmcDictionary))
+                .map(rawField -> buildPassport(rawField, opsByFieldName, tmcDictionary, notesByFieldId))
                 .collect(Collectors.toList());
     }
 
     private FieldPassport buildPassport(RawFieldData rawField,
                                         Map<String, List<RawOperationData>> opsByFieldName,
-                                        TmcDictionary tmcDictionary) {
+                                        TmcDictionary tmcDictionary,
+                                        Map<String, List<RawNote>> notesByFieldId) {
         String fieldName = rawField.field();
         String passportYear = YearUtils.extractYear(rawField.crop());
         List<RawOperationData> fieldOps = opsByFieldName.getOrDefault(fieldName, Collections.emptyList());
@@ -45,6 +58,11 @@ public class FieldDataAggregator {
                 fieldOps, fieldName, passportYear, tmcDictionary
         );
 
-        return PassportMapper.mapToDomain(rawField, tableRows);
+        String fieldId = rawField.fieldId();
+        List<RawNote> fieldNotes = notesByFieldId.getOrDefault(fieldId, Collections.emptyList());
+        NoteSection noteSection = noteMapper.map(fieldNotes, passportYear);
+
+
+        return PassportMapper.mapToDomain(rawField, tableRows, noteSection);
     }
 }

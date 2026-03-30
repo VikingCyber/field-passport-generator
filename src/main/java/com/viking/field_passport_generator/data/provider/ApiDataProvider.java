@@ -1,8 +1,8 @@
 package com.viking.field_passport_generator.data.provider;
 
-import java.util.List;
+import com.viking.field_passport_generator.model.FieldPassport;
 
-import com.viking.field_passport_generator.models.FieldPassport;
+import java.util.List;
 
 public class ApiDataProvider implements DataProvider {
     @Override

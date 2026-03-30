@@ -1,17 +1,19 @@
 package com.viking.field_passport_generator.data.provider;
 
 
-import java.io.InputStream;
-import java.util.List;
-
 import com.viking.field_passport_generator.data.aggregator.FieldDataAggregator;
-import com.viking.field_passport_generator.data.dto.*;
-import com.viking.field_passport_generator.utils.JsonDataParser;
-import com.viking.field_passport_generator.utils.ResourceReader;
+import com.viking.field_passport_generator.data.dto.RawApiResponse;
+import com.viking.field_passport_generator.data.dto.RawGoodsResponse;
+import com.viking.field_passport_generator.data.dto.RawNotesResponse;
+import com.viking.field_passport_generator.data.dto.RawOperationsResponse;
+import com.viking.field_passport_generator.model.FieldPassport;
+import com.viking.field_passport_generator.util.JsonDataParser;
+import com.viking.field_passport_generator.util.ResourceReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.viking.field_passport_generator.models.FieldPassport;
+import java.io.InputStream;
+import java.util.List;
 
 public class FileDataProvider implements DataProvider {
     private static final Logger log = LoggerFactory.getLogger(FileDataProvider.class);
@@ -26,18 +28,20 @@ public class FileDataProvider implements DataProvider {
 
     @Override
     public List<FieldPassport> getPassportsData() {
-        try (InputStream fieldsIs = ResourceReader.readAsStream("fieldData.json");
-                InputStream operationIs = ResourceReader.readAsStream("operationsData.json");
-                InputStream tmcIs = ResourceReader.readAsStream("tmc.json")) {
+        try (InputStream fieldsIs = ResourceReader.readAsStream("data/fieldData.json");
+             InputStream operationIs = ResourceReader.readAsStream("data/operationsData.json");
+             InputStream tmcIs = ResourceReader.readAsStream("data/tmc.json");
+             InputStream notesIs = ResourceReader.readAsStream("data/notesData.json")) {
 
             RawApiResponse fieldsResponse = jsonDataParser.parse(fieldsIs, RawApiResponse.class);
             RawOperationsResponse opsResponse = jsonDataParser.parse(operationIs, RawOperationsResponse.class);
             RawGoodsResponse goodsResponse = jsonDataParser.parse(tmcIs, RawGoodsResponse.class);
+            RawNotesResponse notesResponse = jsonDataParser.parse(notesIs, RawNotesResponse.class);
 
-            return aggregator.aggregate(fieldsResponse, opsResponse, goodsResponse);
+            return aggregator.aggregate(fieldsResponse, opsResponse, goodsResponse, notesResponse);
         } catch (Exception e) {
-            log.error("Критическая ошибка при чтении JSON файлов: {}", e.getMessage());
-            throw new RuntimeException("Ошибка загрузки данных из файла", e);
+            log.error("Failed to load and aggregate passport data from resources", e);
+            throw new RuntimeException("Failed to load and aggregate passport data from resources", e);
         }
     }
 }

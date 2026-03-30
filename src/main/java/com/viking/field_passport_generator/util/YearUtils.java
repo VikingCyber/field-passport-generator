@@ -1,4 +1,4 @@
-package com.viking.field_passport_generator.utils;
+package com.viking.field_passport_generator.util;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

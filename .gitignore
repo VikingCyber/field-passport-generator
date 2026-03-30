@@ -34,6 +34,10 @@ build/
 
 ### Custom ###
 output/
-src/main/resources/fieldData.json
-src/main/resources/operationsData.json
-src/main/resources/tmc.json
+src/main/resources/data/fieldData.json
+src/main/resources/data/operationsData.json
+src/main/resources/data/tmc.json
+src/main/resources/data/notesData.json
+src/main/resources/application.yml
+src/main/resources/ids_for_payload.json
+cache

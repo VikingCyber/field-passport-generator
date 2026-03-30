@@ -1,8 +1,8 @@
-package com.viking.field_passport_generator.services;
+package com.viking.field_passport_generator.service;
+
+import com.viking.field_passport_generator.model.FieldPassport;
 
 import java.util.List;
-
-import com.viking.field_passport_generator.models.FieldPassport;
 
 /**
  * Контракт для компонентов, обеспечивающих формирование документов

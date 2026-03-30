@@ -1,4 +1,4 @@
-package com.viking.field_passport_generator.utils;
+package com.viking.field_passport_generator.util;
 
 import java.io.InputStream;
 import java.util.Objects;

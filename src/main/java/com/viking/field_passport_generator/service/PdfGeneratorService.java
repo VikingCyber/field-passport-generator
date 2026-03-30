@@ -1,4 +1,18 @@
-package com.viking.field_passport_generator.services;
+package com.viking.field_passport_generator.service;
+
+import com.viking.field_passport_generator.model.FieldPassport;
+import com.viking.field_passport_generator.model.NoteImage;
+import com.viking.field_passport_generator.model.NoteTableRow;
+import com.viking.field_passport_generator.model.OperationTableRow;
+import com.viking.field_passport_generator.util.NoteImageComparators;
+import com.viking.field_passport_generator.util.PdfUIHelper;
+import org.openpdf.text.Document;
+import org.openpdf.text.DocumentException;
+import org.openpdf.text.PageSize;
+import org.openpdf.text.pdf.PdfPTable;
+import org.openpdf.text.pdf.PdfWriter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
@@ -6,37 +20,36 @@ import java.io.IOException;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import com.viking.field_passport_generator.models.OperationTableRow;
-import org.openpdf.text.Document;
-import org.openpdf.text.DocumentException;
-
-import org.openpdf.text.PageSize;
-import org.openpdf.text.pdf.PdfPTable;
-import org.openpdf.text.pdf.PdfWriter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.viking.field_passport_generator.models.FieldPassport;
-import com.viking.field_passport_generator.utils.PdfUIHelper;
+import java.util.function.Function;
 
 public class PdfGeneratorService implements PassportGeneratorService {
 
     private static final Logger log = LoggerFactory.getLogger(PdfGeneratorService.class);
-    private static final long MIN_REQUIRED_SPACE_BYTES = 5 * 1024 * 1024; // 5 МБ
-    
+    private final Function<String, byte[]> imageProvider;
+    private final long minRequiredSpaceBytes;
+    private final Path outputDir;
+
+    public PdfGeneratorService(Function<String, byte[]> imageProvider, long minRequiredSpaceBytes, Path outputDir) {
+        this.imageProvider = imageProvider;
+        this.minRequiredSpaceBytes = minRequiredSpaceBytes;
+        this.outputDir = Objects.requireNonNull(outputDir, "OutputDir must not be null");
+    }
+
+
     @Override
     public void generate(FieldPassport passport) {
         String fieldName = passport.generalInfo().fieldName();
         String year = String.valueOf(passport.generalInfo().year());
         String saveFileName = fieldName.replaceAll("[^a-zA-Zа-яА-Я0-9]", "_") + "_" + year + ".pdf";
-        Path outputDir = Path.of("output");
         Path filePath = outputDir.resolve(saveFileName);
 
         log.info("==> Старт генерации PDF для поля: {} (Файл: {})", fieldName, saveFileName);
@@ -57,11 +70,11 @@ public class PdfGeneratorService implements PassportGeneratorService {
                 BufferedOutputStream bos = new BufferedOutputStream(fos);
                 Document document = PdfUIHelper.createDocument()) {
 
-            PdfWriter.getInstance(document, bos);
+            PdfWriter writer = PdfWriter.getInstance(document, bos);
 
             document.open();
             log.debug("PDF документ открыт");
-            fillDocument(document, passport);
+            fillDocument(document, passport, writer);
 
         } catch (DocumentException e) {
             log.error("Ошибка структуры PDF (iText) для {}: {}", fieldName, e.getMessage());
@@ -81,8 +94,9 @@ public class PdfGeneratorService implements PassportGeneratorService {
             if (!Files.isWritable(outputDir)) {
                 throw new IOException("Отсутствуют права на запись");
             }
+
             FileStore store = Files.getFileStore(outputDir);
-            if (store.getUsableSpace() < MIN_REQUIRED_SPACE_BYTES) {
+            if (store.getUsableSpace() < minRequiredSpaceBytes) {
                 throw new IOException("Недостаточно свободного места на диске");
             }
         } catch (IOException e) {
@@ -91,7 +105,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
         }
     }
 
-    private void fillDocument(Document document, FieldPassport passport) {
+    private void fillDocument(Document document, FieldPassport passport, PdfWriter writer) {
         document.add(PdfUIHelper.createSectionTitle("Раздел 1. Общая информация."));
 
         document.add(PdfUIHelper.createParagraph("1.1. Подразделение: " + passport.generalInfo().department()));
@@ -107,11 +121,32 @@ public class PdfGeneratorService implements PassportGeneratorService {
         document.setPageSize(PageSize.A4.rotate());
         document.newPage();
         document.add(PdfUIHelper.createSectionTitle("Раздел 2. Выполненные работы"));
-        List<OperationTableRow> rows = passport.operations();
-        document.add(PdfUIHelper.createOperationsTable(rows));
+        List<OperationTableRow> operationTableRows = passport.operations();
+        document.add(PdfUIHelper.createOperationsTable(operationTableRows));
 
-        PdfPTable tmcContainer = PdfUIHelper.createTmcContainer(rows);
+        PdfPTable tmcContainer = PdfUIHelper.createTmcContainer(operationTableRows);
         document.add(tmcContainer);
+
+        document.newPage();
+        document.add(PdfUIHelper.createSectionTitle("Раздел 3. Заметки"));
+        document.add(PdfUIHelper.createParagraph("3.1. Сводная информация"));
+        List<NoteTableRow> noteTableRows = passport.notesSection().notes();
+        PdfPTable notesTable = PdfUIHelper.createNotesTable(noteTableRows);
+        document.add(notesTable);
+
+        List<NoteImage> noteImages = passport.notesSection().images();
+        Map<String, byte[]> photoMap = new LinkedHashMap<>();
+        noteImages.stream()
+            .sorted(NoteImageComparators.byComplexIndex())
+            .forEach(img -> {
+                byte[] bytes = imageProvider.apply(img.id());
+                if (bytes != null) {
+                    photoMap.put(img.complexIndex(), bytes);
+                }
+            });
+
+        document.newPage();
+        document.add(PdfUIHelper.createPhotoGrid(writer, photoMap));
 
         log.info("Данные поля успешно добавлены в документ");
     }

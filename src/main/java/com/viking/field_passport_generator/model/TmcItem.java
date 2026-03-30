@@ -1,4 +1,4 @@
-package com.viking.field_passport_generator.models;
+package com.viking.field_passport_generator.model;
 
 
 public record TmcItem(

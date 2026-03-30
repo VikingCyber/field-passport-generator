@@ -1,0 +1,118 @@
+package com.viking.field_passport_generator.service;
+
+import com.viking.field_passport_generator.data.dto.DownloadInfo;
+import com.viking.field_passport_generator.http.ImageLoader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+public class ImageCacheService {
+    private final ImageLoader loader;
+    private final Path cachePath;
+    private final Logger log = LoggerFactory.getLogger(ImageCacheService.class);
+    private final Semaphore semaphore = new Semaphore(10);
+
+    public ImageCacheService(ImageLoader loader, Path cachePath) {
+        this.loader = loader;
+        this.cachePath = cachePath;
+    }
+
+    public void preloadImages(Set<String> allIds) {
+        Set<String> existingIdsInCache = getExistingCacheIds();
+
+        List<String> imgToDownload = allIds.stream()
+                .filter(id -> !existingIdsInCache.contains(id))
+                .toList();
+
+        if (imgToDownload.isEmpty()) {
+            log.info("Кэш актуален (все {} фото на месте).", allIds.size());
+            return;
+        }
+
+        AtomicInteger totalLinksFound = new AtomicInteger(0);
+        AtomicInteger totalDownloaded = new AtomicInteger(0);
+
+        log.info("=== Synchronization started : {} photos ====", imgToDownload.size());
+
+        for (int i = 0; i < imgToDownload.size(); i += 50) {
+            List<String> batch = imgToDownload.subList(i, Math.min(i + 50, imgToDownload.size()));
+            Map<String, DownloadInfo> links = loader.fetchDownloadUrls(batch);
+
+            totalLinksFound.addAndGet(links.size());
+
+            if (links.isEmpty()) {
+                log.debug("Batch {}-{}: Links not found", i, i + batch.size());
+                continue;
+            }
+
+            try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                links.forEach((id, info) -> executor.submit(() -> {
+                    try {
+                        semaphore.acquire();
+                        byte[] data = loader.downloadBytes(info.url());
+                        if (data != null) {
+                            Files.write(cachePath.resolve(id + info.extension()), data);
+                            totalDownloaded.incrementAndGet();
+                        }
+                    } catch (IOException e) {
+                        log.error("Error recording file on disk {}: {}", id, e.getMessage());
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("Interrupted while downloading image: {}: {}", id, e.getMessage());
+                    } finally {
+                        semaphore.release();
+                    }
+                }));
+            }
+        }
+
+        int missingInApi = imgToDownload.size() - totalLinksFound.get();
+        int failedDownloads = totalLinksFound.get() - totalDownloaded.get();
+
+        log.info("=== Отчет по прогреву кэша ===");
+        log.info("Всего не хватало:   {}", imgToDownload.size());
+        log.info("Найдено ссылок:    {}", totalLinksFound.get());
+        log.info("Успешно скачано:   {}", totalDownloaded.get());
+        log.info("--- Проблемы ---");
+        log.info("Отсутствуют в API: {} (записи без фото)", missingInApi);
+        log.info("Ошибка загрузки:   {} (битые ссылки/404)", failedDownloads);
+        log.info("==============================");
+    }
+
+    private Set<String> getExistingCacheIds() {
+        try (Stream<Path> stream = Files.list(cachePath)) {
+            return stream
+                    .map(path -> path.getFileName().toString())
+                    .map(name -> name.contains(".") ? name.substring(0, name.lastIndexOf('.')) : name)
+                    .collect(Collectors.toSet());
+        } catch (IOException e) {
+            log.error("Failed to read cache directory", e);
+            return Set.of();
+        }
+    }
+
+    public byte[] getImageBytes(String id) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(cachePath, id + ".*")) {
+            Iterator<Path> iterator = stream.iterator();
+            if (iterator.hasNext()) {
+                return Files.readAllBytes(iterator.next());
+            }
+        } catch (IOException e) {
+            log.error("Failed to read cached image for ID {}: {}", id, e.getMessage());
+        }
+        return null;
+    }
+}
