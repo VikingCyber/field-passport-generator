@@ -16,6 +16,8 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ImageCacheService {
     private final ImageLoader loader;
@@ -29,8 +31,10 @@ public class ImageCacheService {
     }
 
     public void preloadImages(Set<String> allIds) {
+        Set<String> existingIdsInCache = getExistingCacheIds();
+
         List<String> imgToDownload = allIds.stream()
-                .filter(id -> Files.notExists(cachePath.resolve(id + ".jpg")))
+                .filter(id -> !existingIdsInCache.contains(id))
                 .toList();
 
         if (imgToDownload.isEmpty()) {
@@ -86,6 +90,18 @@ public class ImageCacheService {
         log.info("Отсутствуют в API: {} (записи без фото)", missingInApi);
         log.info("Ошибка загрузки:   {} (битые ссылки/404)", failedDownloads);
         log.info("==============================");
+    }
+
+    private Set<String> getExistingCacheIds() {
+        try (Stream<Path> stream = Files.list(cachePath)) {
+            return stream
+                    .map(path -> path.getFileName().toString())
+                    .map(name -> name.contains(".") ? name.substring(0, name.lastIndexOf('.')) : name)
+                    .collect(Collectors.toSet());
+        } catch (IOException e) {
+            log.error("Failed to read cache directory", e);
+            return Set.of();
+        }
     }
 
     public byte[] getImageBytes(String id) {
