@@ -4,6 +4,7 @@ import com.viking.field_passport_generator.model.FieldPassport;
 import com.viking.field_passport_generator.model.NoteImage;
 import com.viking.field_passport_generator.model.NoteTableRow;
 import com.viking.field_passport_generator.model.OperationTableRow;
+import com.viking.field_passport_generator.util.NoteImageComparators;
 import com.viking.field_passport_generator.util.PdfUIHelper;
 import org.openpdf.text.Document;
 import org.openpdf.text.DocumentException;
@@ -29,7 +30,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class PdfGeneratorService implements PassportGeneratorService {
 
@@ -135,41 +135,15 @@ public class PdfGeneratorService implements PassportGeneratorService {
         document.add(notesTable);
 
         List<NoteImage> noteImages = passport.notesSection().images();
-        Map<String, byte[]> photoMap = noteImages.stream()
-                .sorted((img1, img2) -> {
-                    String s1 = img1.complexIndex();
-                    String s2 = img2.complexIndex();
-
-                    // Если в строке нет точки, просто сравниваем как строки
-                    if (!s1.contains(".") || !s2.contains(".")) {
-                        return s1.compareTo(s2);
-                    }
-
-                    try {
-                        String[] p1 = s1.split("\\.");
-                        String[] p2 = s2.split("\\.");
-
-                        // Сравниваем главную часть (до точки)
-                        int major1 = Integer.parseInt(p1[0]);
-                        int major2 = Integer.parseInt(p2[0]);
-                        if (major1 != major2) return Integer.compare(major1, major2);
-
-                        // Сравниваем минорную часть (после точки)
-                        int minor1 = Integer.parseInt(p1[1]);
-                        int minor2 = Integer.parseInt(p2[1]);
-                        return Integer.compare(minor1, minor2);
-
-                    } catch (NumberFormatException e) {
-                        // Если вдруг там не числа, откатываемся к обычной сортировке
-                        return s1.compareTo(s2);
-                    }
-                })
-                .collect(Collectors.toMap(
-                        NoteImage::complexIndex,
-                        img -> imageProvider.apply(img.id()),
-                        (existing, replacement) -> existing,
-                        LinkedHashMap::new
-                ));
+        Map<String, byte[]> photoMap = new LinkedHashMap<>();
+        noteImages.stream()
+            .sorted(NoteImageComparators.byComplexIndex())
+            .forEach(img -> {
+                byte[] bytes = imageProvider.apply(img.id());
+                if (bytes != null) {
+                    photoMap.put(img.complexIndex(), bytes);
+                }
+            });
 
         document.newPage();
         document.add(PdfUIHelper.createPhotoGrid(writer, photoMap));
