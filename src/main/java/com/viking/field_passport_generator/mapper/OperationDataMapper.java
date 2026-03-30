@@ -1,17 +1,16 @@
 package com.viking.field_passport_generator.mapper;
 
+import com.viking.field_passport_generator.data.aggregator.OperationAccumulator;
+import com.viking.field_passport_generator.data.dictionary.TmcDictionary;
+import com.viking.field_passport_generator.data.dto.RawOperationData;
+import com.viking.field_passport_generator.model.OperationTableRow;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
-
-
-import com.viking.field_passport_generator.data.aggregator.OperationAccumulator;
-import com.viking.field_passport_generator.data.dictionary.TmcDictionary;
-import com.viking.field_passport_generator.data.dto.RawOperationData;
-import com.viking.field_passport_generator.model.OperationTableRow;
 
 public class OperationDataMapper {
     private final ZoneId timezone;

@@ -1,29 +1,15 @@
 package com.viking.field_passport_generator;
 
-import java.net.http.HttpClient;
-import java.nio.file.Path;
-import java.time.Duration;
-import java.time.ZoneId;
-import java.util.List;
-import java.util.Scanner;
-
 import com.viking.field_passport_generator.config.AppConfig;
 import com.viking.field_passport_generator.config.AppContainer;
-import com.viking.field_passport_generator.data.aggregator.FieldDataAggregator;
-import com.viking.field_passport_generator.http.ImageLoader;
-import com.viking.field_passport_generator.mapper.NoteMapper;
-import com.viking.field_passport_generator.mapper.OperationDataMapper;
-import com.viking.field_passport_generator.service.ImageCacheService;
-import com.viking.field_passport_generator.service.ImageSyncService;
-import com.viking.field_passport_generator.util.JsonDataParser;
+import com.viking.field_passport_generator.data.provider.DataProvider;
+import com.viking.field_passport_generator.model.FieldPassport;
+import com.viking.field_passport_generator.service.PassportGeneratorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.viking.field_passport_generator.model.FieldPassport;
-import com.viking.field_passport_generator.data.provider.DataProvider;
-import com.viking.field_passport_generator.data.provider.FileDataProvider;
-import com.viking.field_passport_generator.service.PassportGeneratorService;
-import com.viking.field_passport_generator.service.PdfGeneratorService;
+import java.util.List;
+import java.util.Scanner;
 
 public class Main {
     private static final Logger log = LoggerFactory.getLogger(Main.class);

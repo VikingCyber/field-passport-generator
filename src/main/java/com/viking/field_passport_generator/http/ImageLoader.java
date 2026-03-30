@@ -3,6 +3,7 @@ package com.viking.field_passport_generator.http;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.viking.field_passport_generator.data.dto.DownloadInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,7 +37,7 @@ public class ImageLoader {
         this.attachmentsEndpoint = attachmentsEndpoint;
     }
 
-    public Map<String, String> fetchDownloadUrls(List<String> ids) {
+    public Map<String, DownloadInfo> fetchDownloadUrls(List<String> ids) {
         try {
             Map<String, List<String>> requestMap = Map.of("ids", ids);
             String jsonBody = objectMapper.writeValueAsString(requestMap);
@@ -52,7 +53,7 @@ public class ImageLoader {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() == 200) {
-                Map<String, String> links = parseLinkResponse(response.body());
+                Map<String, DownloadInfo> links = parseLinkResponse(response.body());
 
                 if (links.isEmpty()) {
                     log.warn("API found NO images for this batch of {} IDs. Moving on...", ids.size());
@@ -71,7 +72,7 @@ public class ImageLoader {
         return Map.of();
     }
 
-    private Map<String, String> parseLinkResponse(String body) throws JsonProcessingException {
+    private Map<String, DownloadInfo> parseLinkResponse(String body) throws JsonProcessingException {
         AttachmentResponse response = objectMapper.readValue(body, AttachmentResponse.class);
         if (response == null || !response.success() || response.data == null) {
             return Map.of();
@@ -80,8 +81,11 @@ public class ImageLoader {
                 .filter(d -> d.meta() != null && d.meta().resourceUrl() != null)
                 .collect(Collectors.toMap(
                         Data::id,
-                        d -> d.meta().resourceUrl(),
-                        (existing, replacement) -> existing
+                        d -> new DownloadInfo(
+                                d.meta().resourceUrl(),
+                                determineExtension(d)
+                                ),
+                                (existing, replacement) -> existing
                 ));
     }
 
@@ -109,7 +113,26 @@ public class ImageLoader {
         return null;
     }
 
+    private String determineExtension(Data data) {
+        if (data == null) {
+            return "jpg";
+        }
+        String mimeType = (data.meta() != null) ? data.meta().mimeType() : null;
+        String fileName = data.name();
+
+        if (fileName != null && fileName.contains(".")) {
+            return fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
+        }
+
+        if (mimeType != null && mimeType.contains("/")) {
+            String extension = mimeType.substring(mimeType.lastIndexOf("/") + 1).toLowerCase();
+            return "jpeg".equals(extension) ? "jpg" : extension;
+        }
+
+        return "jpg";
+    }
+
     private record AttachmentResponse(boolean success, List<Data> data) {}
-    private record Data(String id, Meta meta) {}
-    private record Meta(String resourceUrl) {}
+    private record Data(String id, String name, Meta meta) {}
+    private record Meta(String resourceUrl, String mimeType) {}
 }

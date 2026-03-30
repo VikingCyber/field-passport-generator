@@ -1,14 +1,5 @@
 package com.viking.field_passport_generator.util;
 
-import java.awt.*;
-import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
-import java.time.Duration;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.List;
-
-
 import com.viking.field_passport_generator.model.NoteTableRow;
 import com.viking.field_passport_generator.model.OperationTableRow;
 import com.viking.field_passport_generator.model.TmcItem;
@@ -19,6 +10,14 @@ import org.openpdf.text.Rectangle;
 import org.openpdf.text.pdf.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.awt.*;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.time.Duration;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.List;
 
 
 /**

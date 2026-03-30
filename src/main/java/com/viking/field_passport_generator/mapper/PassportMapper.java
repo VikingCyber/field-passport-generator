@@ -1,14 +1,13 @@
 package com.viking.field_passport_generator.mapper;
 
-import java.util.Collections;
-import java.util.List;
-
+import com.viking.field_passport_generator.data.dto.RawFieldData;
 import com.viking.field_passport_generator.model.*;
+import com.viking.field_passport_generator.util.YearUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.viking.field_passport_generator.data.dto.RawFieldData;
-import com.viking.field_passport_generator.util.YearUtils;
+import java.util.Collections;
+import java.util.List;
 
 public class PassportMapper {
     private static final Logger log = LoggerFactory.getLogger(PassportMapper.class);

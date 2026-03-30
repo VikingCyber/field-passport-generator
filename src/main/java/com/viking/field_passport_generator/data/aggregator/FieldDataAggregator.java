@@ -6,11 +6,9 @@ import com.viking.field_passport_generator.mapper.NoteMapper;
 import com.viking.field_passport_generator.mapper.OperationDataMapper;
 import com.viking.field_passport_generator.mapper.PassportMapper;
 import com.viking.field_passport_generator.model.FieldPassport;
-import com.viking.field_passport_generator.model.NoteImage;
-import com.viking.field_passport_generator.model.OperationTableRow;
-import com.viking.field_passport_generator.service.ImageCacheService;
-import com.viking.field_passport_generator.util.YearUtils;
 import com.viking.field_passport_generator.model.NoteSection;
+import com.viking.field_passport_generator.model.OperationTableRow;
+import com.viking.field_passport_generator.util.YearUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;

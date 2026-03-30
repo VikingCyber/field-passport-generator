@@ -2,7 +2,6 @@ package com.viking.field_passport_generator.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,7 +60,7 @@ public class AppConfig {
         if (envValue != null && !envValue.isBlank()) return envValue;
 
         JsonNode node = findNode(key);
-        return (node.isMissingNode() || node.isNull() ? null : node.asText());
+        return node.asText();
     }
 
     public String getString(String key, String defaultValue) {

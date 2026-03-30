@@ -1,5 +1,18 @@
 package com.viking.field_passport_generator.service;
 
+import com.viking.field_passport_generator.model.FieldPassport;
+import com.viking.field_passport_generator.model.NoteImage;
+import com.viking.field_passport_generator.model.NoteTableRow;
+import com.viking.field_passport_generator.model.OperationTableRow;
+import com.viking.field_passport_generator.util.PdfUIHelper;
+import org.openpdf.text.Document;
+import org.openpdf.text.DocumentException;
+import org.openpdf.text.PageSize;
+import org.openpdf.text.pdf.PdfPTable;
+import org.openpdf.text.pdf.PdfWriter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -17,21 +30,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import com.viking.field_passport_generator.model.NoteImage;
-import com.viking.field_passport_generator.model.NoteTableRow;
-import com.viking.field_passport_generator.model.OperationTableRow;
-import org.openpdf.text.Document;
-import org.openpdf.text.DocumentException;
-
-import org.openpdf.text.PageSize;
-import org.openpdf.text.pdf.PdfPTable;
-import org.openpdf.text.pdf.PdfWriter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.viking.field_passport_generator.model.FieldPassport;
-import com.viking.field_passport_generator.util.PdfUIHelper;
 
 public class PdfGeneratorService implements PassportGeneratorService {
 

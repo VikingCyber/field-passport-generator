@@ -1,13 +1,15 @@
 package com.viking.field_passport_generator.service;
 
-import com.viking.field_passport_generator.config.AppConfig;
+import com.viking.field_passport_generator.data.dto.DownloadInfo;
 import com.viking.field_passport_generator.http.ImageLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,7 +45,7 @@ public class ImageCacheService {
 
         for (int i = 0; i < imgToDownload.size(); i += 50) {
             List<String> batch = imgToDownload.subList(i, Math.min(i + 50, imgToDownload.size()));
-            Map<String, String> links = loader.fetchDownloadUrls(batch);
+            Map<String, DownloadInfo> links = loader.fetchDownloadUrls(batch);
 
             totalLinksFound.addAndGet(links.size());
 
@@ -53,12 +55,12 @@ public class ImageCacheService {
             }
 
             try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-                links.forEach((id, url) -> executor.submit(() -> {
+                links.forEach((id, info) -> executor.submit(() -> {
                     try {
                         semaphore.acquire();
-                        byte[] data = loader.downloadBytes(url);
+                        byte[] data = loader.downloadBytes(info.url());
                         if (data != null) {
-                            Files.write(cachePath.resolve(id + ".jpg"), data);
+                            Files.write(cachePath.resolve(id + info.extension()), data);
                             totalDownloaded.incrementAndGet();
                         }
                     } catch (IOException e) {
@@ -87,11 +89,14 @@ public class ImageCacheService {
     }
 
     public byte[] getImageBytes(String id) {
-        Path p = cachePath.resolve(id + ".jpg");
-        try {
-            return Files.exists(p) ? Files.readAllBytes(p) : null;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(cachePath, id + ".*")) {
+            Iterator<Path> iterator = stream.iterator();
+            if (iterator.hasNext()) {
+                return Files.readAllBytes(iterator.next());
+            }
         } catch (IOException e) {
-            return null;
+            log.error("Failed to read cached image for ID {}: {}", id, e.getMessage());
         }
+        return null;
     }
 }
