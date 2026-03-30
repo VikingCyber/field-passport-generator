@@ -76,7 +76,7 @@ public final class PdfUIHelper {
             tempText = new Font(Font.HELVETICA, 12);
             tempTableTitle = new Font(Font.HELVETICA, 10, 1);
             tempTableBody = new Font(Font.HELVETICA, 10);
-            System.err.println("Ошибка загрузки шрифтов: " + e.getMessage());
+            log.error("Error loading fonts: {}", e.getMessage());
         }
 
         FONT_TITLE = tempTitle;
