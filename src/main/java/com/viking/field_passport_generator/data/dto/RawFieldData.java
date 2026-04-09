@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 public record RawFieldData(
     String department,
-    @JsonProperty("sourceId") String fieldId,
+    @JsonProperty("sourceId") Long fieldId,
     String field,
     double fieldArea,
     String crop,

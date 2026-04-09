@@ -5,7 +5,8 @@ import com.viking.field_passport_generator.data.provider.DataProvider;
 import com.viking.field_passport_generator.data.provider.FileDataProvider;
 import com.viking.field_passport_generator.http.ImageLoader;
 import com.viking.field_passport_generator.mapper.NoteMapper;
-import com.viking.field_passport_generator.mapper.OperationDataMapper;
+import com.viking.field_passport_generator.mapper.OperationMapper;
+import com.viking.field_passport_generator.mapper.TechJournalMapper;
 import com.viking.field_passport_generator.service.ImageCacheService;
 import com.viking.field_passport_generator.service.ImageSyncService;
 import com.viking.field_passport_generator.service.PassportGeneratorService;
@@ -20,7 +21,7 @@ import java.time.ZoneId;
 public class AppContainer {
     // Services ready for operation (getters provided below)
     private final DataProvider dataProvider;
-    private final PassportGeneratorService pdfService;
+    private final PassportGeneratorService passportGeneratorService;
     private final ImageSyncService syncService;
 
     public AppContainer(AppConfig config) {
@@ -34,12 +35,11 @@ public class AppContainer {
 
         // --- 2. Image Processing Layer ---
         // Configure image loading, caching, and synchronization
-        String userAgent = config.getString("agro.api.user-agent");
         ImageLoader imageLoader = new ImageLoader(
                 httpClient,
                 config.getString("agro.api.base-url"),
                 config.getString("agro.api.key"),
-                userAgent,
+                config.getString("agro.api.user-agent"),
                 config.getString("agro.api.endpoints.attachments-info")
         );
 
@@ -49,12 +49,13 @@ public class AppContainer {
 
         // --- 3. Data Processing Layer (Mappers & Aggregators) ---
         // Convert raw configuration strings into typed domain objects
-        ZoneId zone = ZoneId.of(config.getString("app.timezone", "Asia/Krasnoyarsk"));
+        ZoneId timezone = ZoneId.of(config.getString("app.timezone", "Asia/Krasnoyarsk"));
         Duration threshold = Duration.ofHours(config.getInt("app.threshold-hours", 48));
 
-        OperationDataMapper opMapper = new OperationDataMapper(zone, threshold);
-        NoteMapper noteMapper = new NoteMapper(zone);
-        FieldDataAggregator aggregator = new FieldDataAggregator(opMapper, noteMapper);
+        OperationMapper opMapper = new OperationMapper(timezone, threshold);
+        NoteMapper noteMapper = new NoteMapper(timezone);
+        TechJournalMapper techMapper = new TechJournalMapper();
+        FieldDataAggregator aggregator = new FieldDataAggregator(opMapper, noteMapper, techMapper, timezone);
 
         // DataProvider handles the retrieval and aggregation of field data
         this.dataProvider = new FileDataProvider(jsonParser, aggregator);
@@ -66,7 +67,7 @@ public class AppContainer {
         // Convert Megabytes from config to Bytes for internal safety checks
         long minSpaceBytes = (long) config.getInt("app.min-free-space-mb", 1024) * 1024 * 1024;
 
-        this.pdfService = new PdfGeneratorService(
+        this.passportGeneratorService = new PdfGeneratorService(
                 cacheService::getImageBytes, // Functional interface for decoupled image retrieval
                 minSpaceBytes,
                 outputDir
@@ -75,6 +76,6 @@ public class AppContainer {
 
     // Getters for Main entry point
     public DataProvider getDataProvider() { return dataProvider; }
-    public PassportGeneratorService getPdfService() { return pdfService; }
+    public PassportGeneratorService getPassportGeneratorService() { return passportGeneratorService; }
     public ImageSyncService getSyncService() { return syncService; }
 }

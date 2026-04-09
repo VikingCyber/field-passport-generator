@@ -1,8 +1,6 @@
 package com.viking.field_passport_generator.util;
 
-import com.viking.field_passport_generator.model.NoteTableRow;
-import com.viking.field_passport_generator.model.OperationTableRow;
-import com.viking.field_passport_generator.model.TmcItem;
+import com.viking.field_passport_generator.model.*;
 import org.openpdf.text.*;
 import org.openpdf.text.Font;
 import org.openpdf.text.Image;
@@ -91,7 +89,6 @@ public final class PdfUIHelper {
         table.setWidthPercentage(100f);
         table.setSpacingBefore(10f);
         table.setSpacingAfter(10f);
-        table.setKeepTogether(true);
         if (widths != null) {
             try {
                 table.setWidths(widths);
@@ -388,5 +385,26 @@ public final class PdfUIHelper {
             }
         }
         return grid;
+    }
+
+    public static PdfPTable createTechJournalTable(List<TechJournalTableRow> techJournalTableRows) {
+        if (techJournalTableRows == null || techJournalTableRows.isEmpty()) {
+            return new PdfPTable(1);
+        }
+
+        float[] columnWidths = {50f, 30f, 20f};
+        PdfPTable table = createStandardTable(3, columnWidths);
+        table.setHeaderRows(1);
+
+        for (TechJournalTableRow row : techJournalTableRows) {
+
+            String machineWithTool = row.resource().getFullTitle() + " — " + row.fieldTools();
+            table.addCell(createStyledCell(new Phrase(machineWithTool, FONT_TABLE_BODY), null, Element.ALIGN_LEFT));
+
+            table.addCell(createStyledCell(new Phrase(row.driver(), FONT_TABLE_BODY), null, Element.ALIGN_LEFT));
+
+            table.addCell(createStyledCell(new Phrase(row.period(), FONT_TABLE_BODY), null, Element.ALIGN_LEFT));
+        }
+        return table;
     }
 }

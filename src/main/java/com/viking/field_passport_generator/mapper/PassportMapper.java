@@ -15,10 +15,8 @@ public class PassportMapper {
     /**
      * Превращает сырые данные поля и подготовленный список операций в доменный объект паспорта.
      */
-    public static FieldPassport mapToDomain(
-            RawFieldData raw,
-            List<OperationTableRow> operations,
-            NoteSection noteSection) {
+    public static FieldPassport mapToDomain(RawFieldData raw, List<OperationTableRow> operations,
+            NoteSection noteSection, List<TechJournalTableRow> techJournal) {
         String rawCrop = raw.crop();
 
         String yearStr = YearUtils.extractYear(rawCrop);
@@ -43,7 +41,8 @@ public class PassportMapper {
         return new FieldPassport(
                 info,
                 operations != null ? operations : Collections.emptyList(),
-                noteSection != null ? noteSection : new NoteSection(Collections.emptyList(), Collections.emptyList())
+                noteSection != null ? noteSection : new NoteSection(Collections.emptyList(), Collections.emptyList()),
+                techJournal != null ? techJournal : Collections.emptyList()
         );
     }
 }

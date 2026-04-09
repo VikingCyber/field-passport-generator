@@ -4,15 +4,17 @@ package com.viking.field_passport_generator.data.dto;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class RawOperationData {
-    private Long geoZoneId;
+    @JsonProperty("geoZoneId") Long fieldId;
     private String geoZone;
     private Long operationId;
     private String operation;
@@ -25,16 +27,29 @@ public class RawOperationData {
     private Double avgSpeed;
     private String seasons;
     private String fieldTool;
+    private List<Long> fieldToolIds;
     private String driver;
+    private Long unitId;
+    private String date;
+    private Long mTime;
+
+    @JsonProperty("period")
+    private void unpackPeriod(Map<String, Object> period) {
+        if (period == null) return;
+        this.date = (String) period.get("date");
+        Object mTimeVal = period.get("mTime");
+        if (mTimeVal instanceof Number) {
+            this.mTime = ((Number) mTimeVal).longValue();
+        }
+    }
+
 
     private static final Pattern TMC_ID_PATTERN = Pattern.compile("_(\\d+)$");
     private static final String TMC_PREFIX = "fact_qwn_";
 
     private final Map<String, Object> tmcFields = new HashMap<>();
 
-    public RawOperationData() {
-
-    }
+    public RawOperationData() {}
 
     @JsonAnySetter
     public void setDynamicField(String key, Object value) {
@@ -63,18 +78,7 @@ public class RawOperationData {
                 area != null && area > 0;
     }
 
-
-    public Long getGeoZoneId() {
-        return geoZoneId;
-    }
-
-    public void setGeoZoneId(Long geoZoneId) {
-        this.geoZoneId = geoZoneId;
-    }
-
-    public String getGeoZone() {
-        return geoZone;
-    }
+    public String getGeoZone() { return geoZone; }
 
     public void setGeoZone(String geoZone) {
         this.geoZone = geoZone;
@@ -175,5 +179,29 @@ public class RawOperationData {
     public void setDriver(String driver) {
         this.driver = driver;
     }
+
+    public List<Long> getFieldToolIds() {
+        return fieldToolIds;
+    }
+
+    public void setFieldToolIds(List<Long> fieldToolIds) {
+        this.fieldToolIds = fieldToolIds;
+    }
+
+    public Long getUnitId() { return unitId; }
+
+    public void setUnitId(Long unitId) {
+        this.unitId = unitId;
+    }
+
+    public Long getFieldId() {
+        return fieldId;
+    }
+
+    public void setFieldId(Long fieldId) { this.fieldId = fieldId; }
+
+    public String getDate() { return date; }
+
+    public Long getmTime() { return mTime; }
 }
 
