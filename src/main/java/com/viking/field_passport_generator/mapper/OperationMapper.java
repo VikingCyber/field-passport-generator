@@ -12,37 +12,20 @@ import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class OperationDataMapper {
+public class OperationMapper {
     private final ZoneId timezone;
     private final long aggregationThresholdMs;
 
-    public OperationDataMapper(ZoneId timezone, Duration threshold) {
+    public OperationMapper(ZoneId timezone, Duration threshold) {
         this.timezone = Objects.requireNonNull(timezone, "Timezone must not be null");
         this.aggregationThresholdMs = Objects.requireNonNull(threshold, "Threshold must not be null").toMillis();
     }
 
     public List<OperationTableRow> mapToTableRow(
             List<RawOperationData> rawData,
-            String targetFieldName,
-            String passportYear,
             TmcDictionary tmcDictionary) {
 
-        int targetYear = Integer.parseInt(passportYear);
-        List<RawOperationData> filtered = rawData.stream()
-                .filter(RawOperationData::isValid)
-                .filter(r -> r.getArea() != null && r.getArea() > 0)
-                .filter(r -> targetFieldName.equals(r.getGeoZone()))
-                .filter(r -> {ZonedDateTime zdt = ZonedDateTime.ofInstant(
-                        Instant.ofEpochMilli(r.getStartTime()), timezone);
-                    return zdt.getYear() == targetYear;
-                })
-                .sorted(Comparator.comparing(RawOperationData::getOperation)
-                        .thenComparing(RawOperationData::getStartTime))
-                .toList();
-
-        if (filtered.isEmpty()) return Collections.emptyList();
-
-        List<OperationAccumulator> groups = groupByOperation(filtered);
+        List<OperationAccumulator> groups = groupByOperation(rawData);
 
         return groups.stream()
                 .map(g -> g.toTableRow(tmcDictionary))

@@ -6,7 +6,7 @@ import java.util.Objects;
 
 public final class ResourceReader {
 
-    private ResourceReader() {/* Utility class */}
+    private ResourceReader() { throw new UnsupportedOperationException("Utility class"); }
 
     @SuppressWarnings("resource")
     public static InputStream readAsStream(String path) {

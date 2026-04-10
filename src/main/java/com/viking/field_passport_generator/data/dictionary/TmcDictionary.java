@@ -14,7 +14,11 @@ public class TmcDictionary {
 
     public TmcDictionary(List<TmcDictItem> items) {
         this.tmcDictionary = items.stream()
-                .collect(Collectors.toConcurrentMap(TmcDictItem::id, item -> item));
+                .collect(Collectors.toConcurrentMap(
+                        TmcDictItem::id,
+                        item -> item,
+                        (existing, replacement) -> existing
+                ));
     }
 
     public String getName(Long id) {

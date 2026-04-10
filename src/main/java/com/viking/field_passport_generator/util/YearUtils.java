@@ -6,9 +6,16 @@ import java.util.regex.Pattern;
 public class YearUtils {
     private static final Pattern YEAR_PATTERN = Pattern.compile("(\\d{4})");
 
-    public static String extractYear(String text) {
-        if (text == null || text.isBlank()) return "";
+    public static int extractYear(String text) {
+        if (text == null || text.isBlank()) return -1;
         Matcher matcher = YEAR_PATTERN.matcher(text);
-        return matcher.find() ? matcher.group(1) : "";
+        if (matcher.find()) {
+            try {
+                return Integer.parseInt(matcher.group(1));
+            } catch (NumberFormatException e) {
+                return -1;
+            }
+        }
+        return -1;
     }
 }

@@ -21,18 +21,18 @@ public class Main {
         log.info("Application Started.");
         container.getSyncService().warmUp("data/notesData.json");
 
-        runMenu(container.getDataProvider(), container.getPdfService());
+        runMenu(container.getDataProvider(), container.getPassportGeneratorService());
     }
 
-    private static void runMenu(DataProvider dataProvider, PassportGeneratorService pdfService) {
+    private static void runMenu(DataProvider provider, PassportGeneratorService service) {
         while (true) {
             printMenu();
             String choice = scanner.nextLine();
 
             try {
                 switch (choice) {
-                    case "1" -> generateAll(dataProvider, pdfService);
-                    case "2" -> generateOne(dataProvider, pdfService);
+                    case "1" -> generateAll(provider, service);
+                    case "2" -> generateOne(provider, service);
                     case "0" -> {
                         log.info("Завершение работы...");
                         return;

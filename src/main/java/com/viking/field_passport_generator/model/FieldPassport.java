@@ -5,5 +5,6 @@ import java.util.List;
 public record FieldPassport(
     GeneralInfo generalInfo,
     List<OperationTableRow> operations,
-    NoteSection notesSection
+    NoteSection notesSection,
+    List<TechJournalTableRow> resources
 ) {}

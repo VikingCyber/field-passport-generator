@@ -33,11 +33,9 @@ public class NoteMapper {
             }
         }
 
-
         if (filteredNotes.isEmpty()) {
             return new NoteSection(Collections.emptyList(), Collections.emptyList());
         }
-
 
         filteredNotes.sort(Comparator.comparing(RawNote::createdAt)
                 .thenComparing(RawNote::updatedAt).reversed());

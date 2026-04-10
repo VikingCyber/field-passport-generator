@@ -19,6 +19,7 @@
         <slf4j.version>2.0.17</slf4j.version>
         <openpdf.version>3.0.0</openpdf.version>
         <jackson-dataformat-yaml.version>2.21.2</jackson-dataformat-yaml.version>
+        <jsoup.version>1.22.1</jsoup.version>
     </properties>
 
     <dependencies>
@@ -69,6 +70,13 @@
             <version>${jackson-dataformat-yaml.version}</version>
         </dependency>
 
+        <dependency>
+            <!-- jsoup HTML parser library @ https://jsoup.org/ -->
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>${jsoup.version}</version>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -105,6 +113,20 @@
                 <configuration>
                     <mainClass>com.viking.field_passport_generator.Main</mainClass>
                 </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.6.3</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
         </plugins>

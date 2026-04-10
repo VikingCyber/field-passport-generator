@@ -1,9 +1,6 @@
 package com.viking.field_passport_generator.service;
 
-import com.viking.field_passport_generator.model.FieldPassport;
-import com.viking.field_passport_generator.model.NoteImage;
-import com.viking.field_passport_generator.model.NoteTableRow;
-import com.viking.field_passport_generator.model.OperationTableRow;
+import com.viking.field_passport_generator.model.*;
 import com.viking.field_passport_generator.util.NoteImageComparators;
 import com.viking.field_passport_generator.util.PdfUIHelper;
 import org.openpdf.text.Document;
@@ -147,6 +144,12 @@ public class PdfGeneratorService implements PassportGeneratorService {
 
         document.newPage();
         document.add(PdfUIHelper.createPhotoGrid(writer, photoMap));
+
+        document.newPage();
+        document.add(PdfUIHelper.createSectionTitle("Раздел 7. Работающие механизаторы, техника, агрегаты."));
+        List<TechJournalTableRow> techJournalTableRows = passport.resources();
+        PdfPTable techJournalTable = PdfUIHelper.createTechJournalTable(techJournalTableRows);
+        document.add(techJournalTable);
 
         log.info("Данные поля успешно добавлены в документ");
     }
