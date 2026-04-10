@@ -7,7 +7,7 @@ public final class StringUtils {
         if (s == null || s.isBlank() || s.equalsIgnoreCase("null")) {
             return "";
         }
-        return s.trim().replaceAll("//s+", " ");
+        return s.trim().replaceAll("\\s+", " ");
     }
 
     public static String normalize(String s, String fallback) {
