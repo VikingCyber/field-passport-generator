@@ -394,11 +394,9 @@ public final class PdfUIHelper {
 
         float[] columnWidths = {50f, 30f, 20f};
         PdfPTable table = createStandardTable(3, columnWidths);
-        table.setHeaderRows(1);
 
         for (TechJournalTableRow row : techJournalTableRows) {
-
-            String machineWithTool = row.resource().getFullTitle() + " — " + row.fieldTools();
+            String machineWithTool = row.getFullEquipmentName();
             table.addCell(createStyledCell(new Phrase(machineWithTool, FONT_TABLE_BODY), null, Element.ALIGN_LEFT));
 
             table.addCell(createStyledCell(new Phrase(row.driver(), FONT_TABLE_BODY), null, Element.ALIGN_LEFT));

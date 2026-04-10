@@ -12,7 +12,15 @@ import org.jsoup.nodes.TextNode;
 import java.util.Comparator;
 import java.util.List;
 
+import static com.viking.field_passport_generator.util.StringUtils.clean;
+import static com.viking.field_passport_generator.util.StringUtils.normalize;
+
 public class TechJournalMapper {
+    private final String emptyLabel;
+
+    public TechJournalMapper(String emptyLabel) {
+        this.emptyLabel = emptyLabel;
+    }
 
     public List<TechJournalTableRow> mapToTableRow(List<RawOperationData> cleanOps,
                                                    MachineDictionary machineDict){
@@ -20,16 +28,17 @@ public class TechJournalMapper {
         if (cleanOps == null || cleanOps.isEmpty()) return List.of();
 
         return cleanOps.stream()
-                .sorted(Comparator.comparing(RawOperationData::getmTime))
+                .sorted(Comparator.comparing(RawOperationData::getMTime, Comparator.nullsLast(Comparator.naturalOrder())))
                         .map(op -> {
                             MachineResource machine = machineDict.getById(op.getUnitId());
-                            String fieldTool = op.getFieldTool();
-                            String cleanDate = cleanHtml(op.getDate());
+                            String fieldTool = clean(op.getFieldTool());
+                            String cleanDate = normalize(cleanHtml(op.getDate()), emptyLabel);
+                            String cleanDriver = normalize(op.getDriver(), emptyLabel);
 
                             return new TechJournalTableRow(
                                     machine,
                                     fieldTool,
-                                    op.getDriver() != null ? op.getDriver() : "Не указан",
+                                    cleanDriver,
                                     cleanDate
                             );
                         }).toList();

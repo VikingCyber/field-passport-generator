@@ -1,9 +1,11 @@
 package com.viking.field_passport_generator.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.viking.field_passport_generator.util.StringUtils;
 
 import java.util.Arrays;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record MachineResource(
@@ -31,8 +33,10 @@ public record MachineResource(
     }
 
     public String getFullTitle() {
-        String res = unitTypeName + " " + modelName() + " " + stateNumber() + " " + inventoryNumber;
-        return res.trim().replaceAll("\\s+", " ");
+        return Stream.of(unitTypeName, modelName(), stateNumber(), inventoryNumber)
+                .map(StringUtils::clean)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.joining(" "));
     }
 }
 

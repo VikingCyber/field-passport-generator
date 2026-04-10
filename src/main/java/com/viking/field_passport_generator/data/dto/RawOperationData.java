@@ -202,6 +202,6 @@ public class RawOperationData {
 
     public String getDate() { return date; }
 
-    public Long getmTime() { return mTime; }
+    public Long getMTime() { return mTime; }
 }
 

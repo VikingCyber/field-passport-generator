@@ -12,6 +12,8 @@ import com.viking.field_passport_generator.model.NoteSection;
 import com.viking.field_passport_generator.model.OperationTableRow;
 import com.viking.field_passport_generator.model.TechJournalTableRow;
 import com.viking.field_passport_generator.util.YearUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -24,6 +26,7 @@ public class FieldDataAggregator {
     private final NoteMapper noteMapper;
     private final TechJournalMapper techJournalMapper;
     private final ZoneId timezone;
+    private static final Logger log = LoggerFactory.getLogger(FieldDataAggregator.class);
 
     public FieldDataAggregator(OperationMapper operationMapper, NoteMapper noteMapper,
                                TechJournalMapper techJournalMapper, ZoneId timezone) {
@@ -46,12 +49,22 @@ public class FieldDataAggregator {
 
         Map<Long, List<RawNote>> notesByFieldId = new HashMap<>();
         for (RawNote note : notesResponse.data()) {
-            if (note.sources() != null) {
-                for (String sourceIdStr :  note.sources()) {
-                    try {
-                        Long fId = Long.valueOf(sourceIdStr);
-                        notesByFieldId.computeIfAbsent(fId, v -> new ArrayList<>()).add(note);
-                    } catch (NumberFormatException ignored) {}
+            if (note.sources() == null) {
+                continue;
+            }
+            for (String sourceIdStr :  note.sources()) {
+                if (sourceIdStr == null || sourceIdStr.isBlank()) {
+                    continue;
+                }
+                String cleanId = sourceIdStr.trim();
+                if (cleanId.isEmpty()) {
+                    continue;
+                }
+                try {
+                    Long fId = Long.valueOf(cleanId);
+                    notesByFieldId.computeIfAbsent(fId, v -> new ArrayList<>()).add(note);
+                } catch (NumberFormatException e) {
+                    log.warn("Could not parse note source ID '{}' as a Long.", cleanId);
                 }
             }
         }
@@ -80,7 +93,6 @@ public class FieldDataAggregator {
     private List<RawOperationData> filterOperationsByYear(List<RawOperationData> ops, int targetYear) {
         return ops.stream()
                 .filter(RawOperationData::isValid)
-                .filter(r -> r.getArea() != null && r.getArea() > 0)
                 .filter(r -> {
                     ZonedDateTime zdt = ZonedDateTime.ofInstant(
                             Instant.ofEpochMilli(r.getStartTime()), timezone);

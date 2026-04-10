@@ -54,7 +54,7 @@ public class AppContainer {
 
         OperationMapper opMapper = new OperationMapper(timezone, threshold);
         NoteMapper noteMapper = new NoteMapper(timezone);
-        TechJournalMapper techMapper = new TechJournalMapper();
+        TechJournalMapper techMapper = new TechJournalMapper(config.getString("app.default-empty-label", "—"));
         FieldDataAggregator aggregator = new FieldDataAggregator(opMapper, noteMapper, techMapper, timezone);
 
         // DataProvider handles the retrieval and aggregation of field data
