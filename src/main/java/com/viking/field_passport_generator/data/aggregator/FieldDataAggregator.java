@@ -80,7 +80,7 @@ public class FieldDataAggregator {
                                         TmcDictionary tmcDictionary, MachineDictionary machineDictionary,
                                         Map<Long, List<RawNote>> notesByFieldId) {
         Long fieldId = rawField.fieldId();
-        int passportYear = Integer.parseInt(YearUtils.extractYear(rawField.crop()));
+        int passportYear = YearUtils.extractYear(rawField.crop());
         List<RawOperationData> cleanOps = filterOperationsByYear(opsByFieldId.getOrDefault(fieldId, List.of()), passportYear);
         List<RawNote> fieldNotes = notesByFieldId.getOrDefault(fieldId, Collections.emptyList());
         List<OperationTableRow> operationTableRows = operationMapper.mapToTableRow(cleanOps, tmcDictionary);

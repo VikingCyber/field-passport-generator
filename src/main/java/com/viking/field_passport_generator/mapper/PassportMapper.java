@@ -19,8 +19,7 @@ public class PassportMapper {
             NoteSection noteSection, List<TechJournalTableRow> techJournal) {
         String rawCrop = raw.crop();
 
-        String yearStr = YearUtils.extractYear(rawCrop);
-        int year = yearStr.isEmpty() ? -1 : Integer.parseInt(yearStr);
+        int year = YearUtils.extractYear(rawCrop);
 
         if (year == -1) {
             log.warn("Год не найден в описании культуры поля {}: '{}'", raw.field(), rawCrop);

@@ -14,7 +14,8 @@ import java.util.regex.Pattern;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class RawOperationData {
-    @JsonProperty("geoZoneId") Long fieldId;
+    @JsonProperty("geoZoneId")
+    private Long fieldId;
     private String geoZone;
     private Long operationId;
     private String operation;
