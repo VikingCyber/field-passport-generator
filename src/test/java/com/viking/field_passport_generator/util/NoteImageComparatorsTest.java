@@ -41,8 +41,8 @@ public class NoteImageComparatorsTest {
     @Test
     void compare_equalIndices_shouldReturnZero() {
         // Arrange
-        NoteImage img1 = new NoteImage("bbbb", "5.7");
-        NoteImage img2 = new NoteImage("cccc", "5.7");
+        NoteImage img1 = new NoteImage("same-id", "5.7");
+        NoteImage img2 = new NoteImage("same-id", "5.7");
 
         // Act
         int result = comparator.compare(img1, img2);
@@ -52,7 +52,20 @@ public class NoteImageComparatorsTest {
     }
 
     @Test
-    void compare_withoutDot_shouldCompareAsStrings() {
+    void compare_equalIndices_shouldCompareById() {
+        // Arrange
+        NoteImage img1 = new NoteImage("bbbb", "5.7");
+        NoteImage img2 = new NoteImage("cccc", "5.7");
+
+        // Act
+        int result = comparator.compare(img1, img2);
+
+        // Assert
+        assertTrue(result < 0, "Should compare by ID if indices are equal");
+    }
+
+    @Test
+    void compare_withoutDot_shouldCompareNumerically() {
         // Arrange
         NoteImage img1 = new NoteImage("cccc", "2");
         NoteImage img2 = new NoteImage("rrrr", "10");
