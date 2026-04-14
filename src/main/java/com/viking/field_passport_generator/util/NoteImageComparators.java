@@ -10,21 +10,23 @@ public class NoteImageComparators {
             String s1 = img1.complexIndex();
             String s2 = img2.complexIndex();
 
-            if (!s1.contains(".") || !s2.contains(".")) {
-                return s1.compareTo(s2);
-            }
-
             try {
-                String[] p1 = s1.split("\\.");
-                String[] p2 = s2.split("\\.");
+                if (s1.contains(".") || s2.contains(".")) {
+                    String[] p1 = s1.split("\\.");
+                    String[] p2 = s2.split("\\.");
 
-                int major1 = Integer.parseInt(p1[0]);
-                int major2 = Integer.parseInt(p2[0]);
-                if (major1 != major2) return Integer.compare(major1, major2);
+                    int major1 = Integer.parseInt(p1[0]);
+                    int major2 = Integer.parseInt(p2[0]);
+                    if (major1 != major2) return Integer.compare(major1, major2);
 
-                int minor1 = Integer.parseInt(p1[1]);
-                int minor2 = Integer.parseInt(p2[1]);
-                return Integer.compare(minor1, minor2);
+                    int minor1 = Integer.parseInt(p1[1]);
+                    int minor2 = Integer.parseInt(p2[1]);
+                    return Integer.compare(minor1, minor2);
+                } else {
+                    int i1 = Integer.parseInt(s1);
+                    int i2 = Integer.parseInt(s2);
+                    return Integer.compare(i1, i2);
+                }
             } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
                 return s1.compareTo(s2);
             }
