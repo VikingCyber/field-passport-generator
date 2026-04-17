@@ -3,7 +3,7 @@ package com.viking.field_passport_generator.config;
 import com.viking.field_passport_generator.data.aggregator.FieldDataAggregator;
 import com.viking.field_passport_generator.data.provider.DataProvider;
 import com.viking.field_passport_generator.data.provider.FileDataProvider;
-import com.viking.field_passport_generator.http.ImageLoader;
+import com.viking.field_passport_generator.http.NoteImageLoader;
 import com.viking.field_passport_generator.mapper.NoteMapper;
 import com.viking.field_passport_generator.mapper.OperationMapper;
 import com.viking.field_passport_generator.mapper.TechJournalMapper;
@@ -35,7 +35,7 @@ public class AppContainer {
 
         // --- 2. Image Processing Layer ---
         // Configure image loading, caching, and synchronization
-        ImageLoader imageLoader = new ImageLoader(
+        NoteImageLoader noteImageLoader = new NoteImageLoader(
                 httpClient,
                 config.getString("agro.api.base-url"),
                 config.getString("agro.api.key"),
@@ -44,7 +44,7 @@ public class AppContainer {
         );
 
         Path cacheDir = Path.of(config.getString("app.cache-dir", "cache"));
-        ImageCacheService cacheService = new ImageCacheService(imageLoader, cacheDir);
+        ImageCacheService cacheService = new ImageCacheService(noteImageLoader, cacheDir);
         this.syncService = new ImageSyncService(cacheService, jsonParser);
 
         // --- 3. Data Processing Layer (Mappers & Aggregators) ---

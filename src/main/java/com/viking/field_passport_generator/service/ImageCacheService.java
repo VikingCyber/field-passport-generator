@@ -1,7 +1,7 @@
 package com.viking.field_passport_generator.service;
 
-import com.viking.field_passport_generator.data.dto.DownloadInfo;
 import com.viking.field_passport_generator.http.ImageLoader;
+import com.viking.field_passport_generator.http.LoadResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,11 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -23,7 +19,6 @@ public class ImageCacheService {
     private final ImageLoader loader;
     private final Path cachePath;
     private final Logger log = LoggerFactory.getLogger(ImageCacheService.class);
-    private final Semaphore semaphore = new Semaphore(10);
 
     public ImageCacheService(ImageLoader loader, Path cachePath) {
         this.loader = loader;
@@ -42,53 +37,41 @@ public class ImageCacheService {
             return;
         }
 
-        AtomicInteger totalLinksFound = new AtomicInteger(0);
-        AtomicInteger totalDownloaded = new AtomicInteger(0);
+        int totalLinksFound = 0;
+        int totalDownloaded = 0;
+        int totalFailed = 0;
 
         log.info("=== Synchronization started : {} photos ====", imgToDownload.size());
 
         for (int i = 0; i < imgToDownload.size(); i += 50) {
             List<String> batch = imgToDownload.subList(i, Math.min(i + 50, imgToDownload.size()));
-            Map<String, DownloadInfo> links = loader.fetchDownloadUrls(batch);
-
-            totalLinksFound.addAndGet(links.size());
-
-            if (links.isEmpty()) {
-                log.debug("Batch {}-{}: Links not found", i, i + batch.size());
-                continue;
-            }
-
-            try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-                links.forEach((id, info) -> executor.submit(() -> {
-                    try {
-                        semaphore.acquire();
-                        byte[] data = loader.downloadBytes(info.url());
-                        if (data != null) {
-                            Files.write(cachePath.resolve(id + info.extension()), data);
-                            totalDownloaded.incrementAndGet();
-                        }
-                    } catch (IOException e) {
-                        log.error("Error recording file on disk {}: {}", id, e.getMessage());
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        log.error("Interrupted while downloading image: {}: {}", id, e.getMessage());
-                    } finally {
-                        semaphore.release();
-                    }
-                }));
-            }
+            LoadResult result = loader.load(batch);
+            result.images().forEach((id, resource) -> {
+                try {
+                    Files.write(cachePath.resolve(id + "." + resource.extension()), resource.data());
+                } catch (IOException e) {
+                    log.error("Error recording file on disk {}: {}", id, e.getMessage());
+                }
+            });
+            totalLinksFound += result.linksFound();
+            totalDownloaded += result.images().size();
+            totalFailed += result.downloadErrors();
         }
 
-        int missingInApi = imgToDownload.size() - totalLinksFound.get();
-        int failedDownloads = totalLinksFound.get() - totalDownloaded.get();
+        printCacheReport(imgToDownload.size(), totalLinksFound, totalDownloaded, totalFailed);
+
+    }
+
+    private void printCacheReport(int totalMissing, int totalLinksFound, int totalDownloaded, int totalFailed) {
+        int missingInApi = totalMissing - totalLinksFound;
 
         log.info("=== Отчет по прогреву кэша ===");
-        log.info("Всего не хватало:   {}", imgToDownload.size());
-        log.info("Найдено ссылок:    {}", totalLinksFound.get());
-        log.info("Успешно скачано:   {}", totalDownloaded.get());
+        log.info("Всего не хватало:   {}", totalMissing);
+        log.info("Найдено ссылок:    {}", totalLinksFound);
+        log.info("Успешно скачано:   {}", totalDownloaded);
         log.info("--- Проблемы ---");
         log.info("Отсутствуют в API: {} (записи без фото)", missingInApi);
-        log.info("Ошибка загрузки:   {} (битые ссылки/404)", failedDownloads);
+        log.info("Ошибка загрузки:   {} (битые ссылки/404)", totalFailed);
         log.info("==============================");
     }
 
