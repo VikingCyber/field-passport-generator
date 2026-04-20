@@ -23,6 +23,17 @@ public class ImageCacheService {
     public ImageCacheService(ImageLoader loader, Path cachePath) {
         this.loader = loader;
         this.cachePath = cachePath;
+        initCacheDirectory();
+    }
+
+    private void initCacheDirectory() {
+        try {
+            Files.createDirectories(cachePath);
+            log.info("Cache directory ready: {}", cachePath);
+        } catch (IOException e) {
+            log.error("Cannot create cache directory: {}", cachePath, e);
+            throw new RuntimeException("Failed to initialize cache", e);
+        }
     }
 
     public void preloadImages(Set<String> allIds) {
