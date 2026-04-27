@@ -3,6 +3,7 @@ package com.viking.field_passport_generator.config;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.viking.field_passport_generator.model.SpectralIndex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,6 +11,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.Set;
 
 public class AppConfig {
     private static final Logger log = LoggerFactory.getLogger(AppConfig.class);
@@ -86,5 +89,23 @@ public class AppConfig {
 
         String val = getString(key);
         return val != null ? Boolean.parseBoolean(val.trim()) : defaultValue;
+    }
+
+    public Set<SpectralIndex> getSpectralIndex(String key, Set<SpectralIndex> defaultValue) {
+        JsonNode node = findNode(key);
+
+        if (node.isMissingNode() || !node.isArray()) {
+            return defaultValue;
+        }
+
+        Set<SpectralIndex> result = new HashSet<>();
+        for (JsonNode item : node) {
+            try {
+                result.add(SpectralIndex.valueOf(item.asText().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                log.warn("Unknown spectral index in config: {}", item.asText());
+            }
+        }
+        return result.isEmpty() ? defaultValue : result;
     }
 }

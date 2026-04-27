@@ -4,9 +4,12 @@ import com.viking.field_passport_generator.data.aggregator.FieldDataAggregator;
 import com.viking.field_passport_generator.data.provider.DataProvider;
 import com.viking.field_passport_generator.data.provider.FileDataProvider;
 import com.viking.field_passport_generator.http.NoteImageLoader;
+import com.viking.field_passport_generator.http.SatelliteImageLoader;
 import com.viking.field_passport_generator.mapper.NoteMapper;
 import com.viking.field_passport_generator.mapper.OperationMapper;
+import com.viking.field_passport_generator.mapper.SatelliteMapper;
 import com.viking.field_passport_generator.mapper.TechJournalMapper;
+import com.viking.field_passport_generator.model.SpectralIndex;
 import com.viking.field_passport_generator.service.ImageCacheService;
 import com.viking.field_passport_generator.service.ImageSyncService;
 import com.viking.field_passport_generator.service.PassportGeneratorService;
@@ -17,6 +20,7 @@ import java.net.http.HttpClient;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.ZoneId;
+import java.util.Set;
 
 public class AppContainer {
     // Services ready for operation (getters provided below)
@@ -43,9 +47,18 @@ public class AppContainer {
                 config.getString("agro.api.endpoints.attachments-info")
         );
 
+        SatelliteImageLoader satelliteLoader = new SatelliteImageLoader(
+                httpClient,
+                config.getString("agro.api.base-url"),
+                config.getString("agro.api.key"),
+                config.getString("agro.api.user-agent"),
+                0.4,
+                "spectralIndices"
+        );
+
         Path cacheDir = Path.of(config.getString("app.cache-dir", "cache"));
-        ImageCacheService cacheService = new ImageCacheService(noteImageLoader, cacheDir);
-        this.syncService = new ImageSyncService(cacheService, jsonParser);
+        ImageCacheService noteCache = new ImageCacheService(noteImageLoader, satelliteLoader, cacheDir);
+        this.syncService = new ImageSyncService(noteCache, jsonParser);
 
         // --- 3. Data Processing Layer (Mappers & Aggregators) ---
         // Convert raw configuration strings into typed domain objects
@@ -55,7 +68,10 @@ public class AppContainer {
         OperationMapper opMapper = new OperationMapper(timezone, threshold);
         NoteMapper noteMapper = new NoteMapper(timezone);
         TechJournalMapper techMapper = new TechJournalMapper(config.getString("app.default-empty-label", "—"));
-        FieldDataAggregator aggregator = new FieldDataAggregator(opMapper, noteMapper, techMapper, timezone);
+        Set<SpectralIndex> requiredIndices = config.getSpectralIndex("agro.satellite.indices", Set.of(SpectralIndex.NDVI));
+        SatelliteMapper satelliteMapper = new SatelliteMapper(requiredIndices);
+        FieldDataAggregator aggregator = new FieldDataAggregator(opMapper, noteMapper, techMapper, satelliteMapper,
+                timezone);
 
         // DataProvider handles the retrieval and aggregation of field data
         this.dataProvider = new FileDataProvider(jsonParser, aggregator);
@@ -65,10 +81,10 @@ public class AppContainer {
         Path outputDir = Path.of(config.getString("app.storage.output-dir", "output"));
 
         // Convert Megabytes from config to Bytes for internal safety checks
-        long minSpaceBytes = (long) config.getInt("app.min-free-space-mb", 1024) * 1024 * 1024;
+        long minSpaceBytes = (long) config.getInt("app.min-free-space-mb", 1024) * 1024L * 1024L;
 
         this.passportGeneratorService = new PdfGeneratorService(
-                cacheService::getImageBytes, // Functional interface for decoupled image retrieval
+                noteCache::getImageBytes, // Functional interface for decoupled image retrieval
                 minSpaceBytes,
                 outputDir
         );

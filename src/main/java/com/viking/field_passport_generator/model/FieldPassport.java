@@ -6,5 +6,6 @@ public record FieldPassport(
     GeneralInfo generalInfo,
     List<OperationTableRow> operations,
     NoteSection notesSection,
-    List<TechJournalTableRow> resources
+    List<TechJournalTableRow> resources,
+    List<SatelliteImage> satelliteImages
 ) {}

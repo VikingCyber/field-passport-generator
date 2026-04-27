@@ -17,10 +17,7 @@ import java.io.IOException;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -145,11 +142,26 @@ public class PdfGeneratorService implements PassportGeneratorService {
         document.newPage();
         document.add(PdfUIHelper.createPhotoGrid(writer, photoMap));
 
+        // --- Section 6. Satellite Images ---
+        document.newPage();
+        document.add(PdfUIHelper.createSectionTitle("Раздел 6. Спутниковые снимки NDVI"));
+
+        List<SatelliteImage> satelliteImages = passport.satelliteImages();
+
+        if (satelliteImages == null || satelliteImages.isEmpty()) {
+            document.add(PdfUIHelper.createParagraph("Данные спутникового мониторинга не были загружены."));
+        } else {
+            // Добавляем в столбик
+            PdfUIHelper.addSatelliteImagesColumn(document, satelliteImages);
+        }
+
+        // --- Section 7 ---
         document.newPage();
         document.add(PdfUIHelper.createSectionTitle("Раздел 7. Работающие механизаторы, техника, агрегаты."));
         List<TechJournalTableRow> techJournalTableRows = passport.resources();
         PdfPTable techJournalTable = PdfUIHelper.createTechJournalTable(techJournalTableRows);
         document.add(techJournalTable);
+
 
         log.info("Данные поля успешно добавлены в документ");
     }

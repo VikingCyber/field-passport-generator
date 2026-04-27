@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.viking.field_passport_generator.data.dto.DownloadInfo;
+import com.viking.field_passport_generator.data.dto.note.AttachmentResponse;
+import com.viking.field_passport_generator.data.dto.note.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -112,10 +114,10 @@ public class NoteImageLoader implements ImageLoader {
 
     private Map<String, DownloadInfo> parseLinkResponse(String body) throws JsonProcessingException {
         AttachmentResponse response = objectMapper.readValue(body, AttachmentResponse.class);
-        if (response == null || !response.success() || response.data == null) {
+        if (response == null || !response.success() || response.data() == null) {
             return Map.of();
         }
-        return response.data.stream()
+        return response.data().stream()
                 .filter(d -> d.meta() != null && d.meta().resourceUrl() != null)
                 .collect(Collectors.toMap(
                         Data::id,
@@ -169,8 +171,4 @@ public class NoteImageLoader implements ImageLoader {
 
         return "jpg";
     }
-
-    private record AttachmentResponse(boolean success, List<Data> data) {}
-    private record Data(String id, String name, Meta meta) {}
-    private record Meta(String resourceUrl, String mimeType) {}
 }
