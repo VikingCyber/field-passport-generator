@@ -131,9 +131,8 @@ public class NoteImageLoader implements ImageLoader {
 
     public byte[] downloadBytes(String url) {
         log.debug("Скачивание файла по ссылке: {}", url);
-        String encodedUrl = url.replace(" ", "%20");
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(encodedUrl))
+                .uri(URI.create(url))
                 .headers("User-Agent", userAgent)
                 .timeout(Duration.ofSeconds(10))
                 .GET()
@@ -145,7 +144,7 @@ public class NoteImageLoader implements ImageLoader {
                 byte[] data = response.body();
                 return (data != null && data.length > 1024) ? data : null;
             } else {
-                log.warn("Server response code: {} for file: {}", response.statusCode(), encodedUrl);
+                log.warn("Server response code: {} for file: {}", response.statusCode(), url);
             }
         } catch (Exception e) {
             log.error("Error downloading file: {}", e.getMessage());

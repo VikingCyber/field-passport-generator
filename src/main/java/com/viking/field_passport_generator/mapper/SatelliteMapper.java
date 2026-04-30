@@ -1,5 +1,6 @@
 package com.viking.field_passport_generator.mapper;
 
+import com.viking.field_passport_generator.data.dto.satellite.SatelliteCaptureRule;
 import com.viking.field_passport_generator.model.OperationTableRow;
 import com.viking.field_passport_generator.model.SatelliteImage;
 import com.viking.field_passport_generator.model.SpectralIndex;
@@ -11,29 +12,28 @@ import java.util.Set;
 
 public class SatelliteMapper {
     private final Set<SpectralIndex> indices;
-    public SatelliteMapper(Set<SpectralIndex> indices) {
+    private final List<SatelliteCaptureRule> rules;
+    public SatelliteMapper(Set<SpectralIndex> indices, List<SatelliteCaptureRule> rules) {
         this.indices = indices;
+        this.rules = rules;
     }
 
     public List<SatelliteImage> map(Long fieldId, List<OperationTableRow> rows) {
         List<SatelliteImage> result = new ArrayList<>();
 
         for (OperationTableRow row : rows) {
-            String name = row.operationName().toLowerCase();
-            LocalDate date = row.end().toLocalDate();
+            String operationName = row.operationName().toLowerCase();
+            LocalDate operationEndDate = row.end().toLocalDate();
 
-            if (name.contains("дискование"))  {
-                addImages(result, fieldId, date, "Дискование первичное");
-            }
-
-            if (name.contains("посев")) {
-                addImages(result, fieldId, date.plusDays(30), "30 дней после посева");
-            }
-
-            if (name.contains("сзр")) {
-                addImages(result, fieldId, date.plusDays(3), "3 дня после обработки СЗР");
-                addImages(result, fieldId, date.plusDays(14), "14 дней после обработки СЗР");
-                addImages(result, fieldId, date.plusDays(45), "45 дней после обработки СЗР");
+            for (SatelliteCaptureRule rule : rules) {
+                if (operationName.contains(rule.key().toLowerCase())) {
+                    for (int i = 0; i < rule.offsets().size(); i++) {
+                        int daysOffset = rule.offsets().get(i);
+                        String description = rule.labels().get(i);
+                        LocalDate targetDate = operationEndDate.plusDays(daysOffset);
+                        addImages(result, fieldId, targetDate, description);
+                    }
+                }
             }
         }
         return result;

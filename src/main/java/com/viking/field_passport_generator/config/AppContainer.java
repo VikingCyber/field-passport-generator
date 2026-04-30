@@ -1,6 +1,7 @@
 package com.viking.field_passport_generator.config;
 
 import com.viking.field_passport_generator.data.aggregator.FieldDataAggregator;
+import com.viking.field_passport_generator.data.dto.satellite.SatelliteCaptureRule;
 import com.viking.field_passport_generator.data.provider.DataProvider;
 import com.viking.field_passport_generator.data.provider.FileDataProvider;
 import com.viking.field_passport_generator.http.NoteImageLoader;
@@ -20,6 +21,7 @@ import java.net.http.HttpClient;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Set;
 
 public class AppContainer {
@@ -52,12 +54,13 @@ public class AppContainer {
                 config.getString("agro.api.base-url"),
                 config.getString("agro.api.key"),
                 config.getString("agro.api.user-agent"),
-                0.4,
                 "spectralIndices"
         );
 
         Path cacheDir = Path.of(config.getString("app.cache-dir", "cache"));
-        ImageCacheService noteCache = new ImageCacheService(noteImageLoader, satelliteLoader, cacheDir);
+        String fromDate = config.getString("agro.satellite.fromDate", "20240101");
+        String toDate = config.getString("agro.satellite.toDate", "20261231");
+        ImageCacheService noteCache = new ImageCacheService(noteImageLoader, satelliteLoader, cacheDir, fromDate, toDate);
         this.syncService = new ImageSyncService(noteCache, jsonParser);
 
         // --- 3. Data Processing Layer (Mappers & Aggregators) ---
@@ -69,7 +72,8 @@ public class AppContainer {
         NoteMapper noteMapper = new NoteMapper(timezone);
         TechJournalMapper techMapper = new TechJournalMapper(config.getString("app.default-empty-label", "—"));
         Set<SpectralIndex> requiredIndices = config.getSpectralIndex("agro.satellite.indices", Set.of(SpectralIndex.NDVI));
-        SatelliteMapper satelliteMapper = new SatelliteMapper(requiredIndices);
+        List<SatelliteCaptureRule> captureRules = config.getMappingResult("agro.satellite.mapping");
+        SatelliteMapper satelliteMapper = new SatelliteMapper(requiredIndices, captureRules);
         FieldDataAggregator aggregator = new FieldDataAggregator(opMapper, noteMapper, techMapper, satelliteMapper,
                 timezone);
 

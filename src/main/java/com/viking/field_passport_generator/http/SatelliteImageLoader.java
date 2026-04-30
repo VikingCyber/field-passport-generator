@@ -11,15 +11,15 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.URLEncoder;
+import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 public class SatelliteImageLoader {
@@ -27,22 +27,22 @@ public class SatelliteImageLoader {
     private final ObjectMapper objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private final AtomicBoolean circuitBreaker = new AtomicBoolean(false);
+    private final AtomicLong lastErrorTime = new AtomicLong(0);
+    private static final long RECOVERY_TIME_MS = 60_000;
     private final Semaphore networkSemaphore = new Semaphore(5);
 
     private final HttpClient httpClient;
     private final String baseUrl;
     private final String apiKey;
     private final String userAgent;
-    private final double cloudThreshold;
     private final String spectralEndpoint;
 
     public SatelliteImageLoader(HttpClient httpClient, String baseUrl, String apiKey,
-                                String userAgent, double cloudThreshold, String spectralEndpoint) {
+                                String userAgent, String spectralEndpoint) {
         this.httpClient = httpClient;
         this.baseUrl = baseUrl;
         this.apiKey = apiKey;
         this.userAgent = userAgent;
-        this.cloudThreshold = cloudThreshold;
         this.spectralEndpoint = spectralEndpoint;
     }
 
@@ -79,7 +79,7 @@ public class SatelliteImageLoader {
                     rawData = objectMapper.convertValue(node, new TypeReference<>() {});
                 } else if (node.isObject()) {
                     // Если пришел объект, логируем его, чтобы понять, что там внутри
-                    log.warn("Вместо списка пришел объект! Возможно, это ошибка или обертка: {}", node.toString());
+                    log.warn("Вместо списка пришел объект! Возможно, это ошибка или обертка: {}", node);
 
                     // Если данные лежат внутри поля, например "data" или "items", достаем их:
                     if (node.has("data") && node.get("data").isArray()) {
@@ -116,23 +116,25 @@ public class SatelliteImageLoader {
         return "png";
     }
 
-    public byte[] downloadBytes(String url) {
+    public byte[] downloadBytes(String path) {
         // 1. Быстрая проверка: если предохранитель выбит или ссылки нет — даже не пытаемся
-        if (url == null || url.isBlank() || circuitBreaker.get()) {
+        if (path == null || path.isBlank()) {
             return null;
         }
 
-        // 2. Формируем полный URI
+        if (circuitBreaker.get()) {
+            long elapsed = System.currentTimeMillis() - lastErrorTime.get();
+            if (elapsed > RECOVERY_TIME_MS) {
+                log.info("Circuit breaker is HALF-OPEN. Testing API with a probe request...");
+            } else {
+                return null;
+            }
+        }
         URI fullUri;
         try {
-            if (url.startsWith("http")) {
-                fullUri = URI.create(url.replace(" ", "%20"));
-            } else {
-                String path = url.startsWith("/") ? url.substring(1) : url;
-                fullUri = URI.create(baseUrl).resolve(path.replace(" ", "%20"));
-            }
-        } catch (Exception e) {
-            log.error("Некорректный URL снимка: {}", url);
+            fullUri = URI.create(baseUrl).resolve(path);
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid path: {}", path);
             return null;
         }
 
@@ -149,42 +151,64 @@ public class SatelliteImageLoader {
 
             log.debug("Загрузка снимка: {}", fullUri);
 
-            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
-
-            // 4. Обработка результата
-            if (response.statusCode() == 200) {
-                byte[] data = response.body();
-                // Проверка на размер (заглушки обычно весят очень мало)
-                if (data != null && data.length > 1024) {
-                    return data;
-                } else {
-                    log.warn("Снимок скачан, но размер подозрительно мал: {} байт", data != null ? data.length : 0);
+            // 5. Реакция на перегрузку API или ошибки сервера
+            int maxAttempts = 3;
+            long waitTime = 2000;
+            for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+                if (circuitBreaker.get() && (System.currentTimeMillis() - lastErrorTime.get() < RECOVERY_TIME_MS)) {
                     return null;
                 }
-            }
 
-            // 5. Реакция на перегрузку API или ошибки сервера
-            if (response.statusCode() == 429 || response.statusCode() >= 500) {
-                log.error("КРИТИЧЕСКАЯ ОШИБКА API {}. Выбиваем предохранитель.", response.statusCode());
-                circuitBreaker.set(true);
-            } else {
-                log.warn("Не удалось скачать снимок. Код: {} | URL: {}", response.statusCode(), fullUri);
-            }
+                HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+                int status = response.statusCode();
+                // 4. Обработка результата
+                if (status == 200) {
+                    if (circuitBreaker.get()) {
+                        log.info("Api recovered! Circuit breaker is now CLOSED");
+                        circuitBreaker.set(false);
+                        lastErrorTime.set(0);
+                    }
+                    byte[] data = response.body();
+                    // Проверка на размер (заглушки обычно весят очень мало)
+                    if (data != null && data.length > 1024) {
+                        return data;
+                    } else {
+                        log.warn("Снимок скачан, но размер подозрительно мал: {} байт", data != null ? data.length : 0);
+                        return null;
+                    }
+                }
+                if (status == 429) {
+                    log.error("API 429 (Too Many Requests). Tripping circuit breaker.");
+                    circuitBreaker.set(true);
+                    lastErrorTime.set(System.currentTimeMillis());
+                    return null;
+                }
 
+                if (status >= 500) {
+                    log.warn("Attempt {}/{} | Status {} | Retrying in {}ms", attempt, maxAttempts, status, waitTime);
+                    if (attempt < maxAttempts) {
+                        Thread.sleep(waitTime);
+                        waitTime *= 2;
+                    } else {
+                        log.error("Max attempts reached for 5xx. Tripping circuit breaker.");
+                        circuitBreaker.set(true);
+                        lastErrorTime.set(System.currentTimeMillis());
+                    }
+                } else {
+                    log.warn("Non-retryable error: {}. Skipping: {}", status, fullUri);
+                    break;
+                }
+            }
         } catch (InterruptedException e) {
             log.error("Поток загрузки прерван");
             Thread.currentThread().interrupt();
         } catch (IOException e) {
-            log.error("Ошибка сети при загрузке снимка {}: {}", fullUri, e.getMessage());
-            // Если сеть совсем легла — тоже можно выбить предохранитель
-            // circuitBreaker.set(true);
+            log.error("Network I/O error {}: {}", fullUri, e.getMessage());
         } catch (Exception e) {
-            log.error("Непредвиденная ошибка: {}", e.getMessage());
+            log.error("Unexpected error: {}", e.getMessage());
         } finally {
-            // ОБЯЗАТЕЛЬНО освобождаем семафор
             networkSemaphore.release();
         }
-
         return null;
     }
 
@@ -193,19 +217,30 @@ public class SatelliteImageLoader {
     }
 
     private URI buildUri(List<Long> ids, String fromDate, String toDate) {
-        List<String> params = new ArrayList<>();
-        params.add("apiKey=" + encode(apiKey));
-        params.add("fromDate=" + encode(fromDate));
-        params.add("toDate=" + encode(toDate));
+        try {
+            List<String> params = new ArrayList<>();
+            params.add("apiKey=" + apiKey);
+            params.add("fromDate=" + fromDate);
+            params.add("toDate=" + toDate);
 
-        for (Long id : ids) {
-            params.add("id=" + id);
+            for (Long id : ids) {
+                params.add("id=" + id);
+            }
+
+            String query = String.join("&", params);
+
+            URI base = URI.create(baseUrl);
+            return new URI(
+                    base.getScheme(),
+                    base.getAuthority(),
+                    base.getPath() + spectralEndpoint,
+                    query,
+                    null
+            );
+        } catch (URISyntaxException e) {
+            log.error("Failed to construct spectral data URI for ids: {}. Reason: {}", ids, e.getMessage());
         }
-        String queryString = String.join("&", params);
-        return URI.create(baseUrl + spectralEndpoint + "?" + queryString);
+        return null;
     }
 
-    private String encode(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
-    }
 }

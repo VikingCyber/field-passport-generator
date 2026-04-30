@@ -3,6 +3,7 @@ package com.viking.field_passport_generator.config;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.viking.field_passport_generator.data.dto.satellite.SatelliteCaptureRule;
 import com.viking.field_passport_generator.model.SpectralIndex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,8 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 public class AppConfig {
     private static final Logger log = LoggerFactory.getLogger(AppConfig.class);
@@ -107,5 +107,20 @@ public class AppConfig {
             }
         }
         return result.isEmpty() ? defaultValue : result;
+    }
+
+    public List<SatelliteCaptureRule> getMappingResult(String key) {
+        JsonNode node = findNode(key);
+        if (node.isMissingNode() || !node.isArray()) {
+            return Collections.emptyList();
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            return mapper.readerForListOf(SatelliteCaptureRule.class).readValue(node);
+        } catch (IOException e) {
+            log.error("Failed to parse mapping rules from config at key : {}", key);
+            return Collections.emptyList();
+        }
     }
 }

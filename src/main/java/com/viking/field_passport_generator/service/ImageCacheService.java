@@ -31,14 +31,18 @@ public class ImageCacheService {
     private final NoteImageLoader noteImageLoader;
     private final SatelliteImageLoader satelliteImageLoader;
     private final Path cachePath;
+    private final String fromDate;
+    private final String toDate;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Logger log = LoggerFactory.getLogger(ImageCacheService.class);
 
     public ImageCacheService(NoteImageLoader noteImageLoader, SatelliteImageLoader satelliteImageLoader,
-                             Path cachePath) {
+                             Path cachePath, String fromDate, String toDate) {
         this.noteImageLoader = noteImageLoader;
         this.satelliteImageLoader = satelliteImageLoader;
         this.cachePath = cachePath;
+        this.fromDate = fromDate;
+        this.toDate = toDate;
         initCacheDirectory();
     }
 
@@ -135,8 +139,8 @@ public class ImageCacheService {
                             semaphore.acquire();
                             Map<Long, FieldSpectralResponse> remote = satelliteImageLoader.fetchSpectralData(
                                     batch,
-                                    "20240101",
-                                    "20261231"
+                                    fromDate,
+                                    toDate
                             );
                             for (Long id : batch) {
                                 if (remote != null && remote.containsKey(id)) {
