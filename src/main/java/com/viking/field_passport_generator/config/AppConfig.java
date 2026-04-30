@@ -77,7 +77,19 @@ public class AppConfig {
 
         String val = getString(key);
         try {
-            return val!= null ? Integer.parseInt(val.trim()) : defaultValue;
+            return val != null ? Integer.parseInt(val.trim()) : defaultValue;
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    public long getLong(String key, long defaultValue) {
+        JsonNode node = findNode(key);
+        if (node.isNumber()) return node.asLong();
+
+        String val = getString(key);
+        try {
+            return val != null ? Long.parseLong(val.trim()) : defaultValue;
         } catch (NumberFormatException e) {
             return defaultValue;
         }

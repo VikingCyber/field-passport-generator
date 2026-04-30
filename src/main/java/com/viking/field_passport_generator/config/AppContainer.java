@@ -54,7 +54,9 @@ public class AppContainer {
                 config.getString("agro.api.base-url"),
                 config.getString("agro.api.key"),
                 config.getString("agro.api.user-agent"),
-                "spectralIndices"
+                "spectralIndices",
+                config.getLong("agro.satellite.recovery-time", 60_000)
+
         );
 
         Path cacheDir = Path.of(config.getString("app.cache-dir", "cache"));

@@ -28,7 +28,7 @@ public class SatelliteImageLoader {
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private final AtomicBoolean circuitBreaker = new AtomicBoolean(false);
     private final AtomicLong lastErrorTime = new AtomicLong(0);
-    private static final long RECOVERY_TIME_MS = 60_000;
+    private final long recoveryTimeMS;
     private final Semaphore networkSemaphore = new Semaphore(5);
 
     private final HttpClient httpClient;
@@ -38,12 +38,13 @@ public class SatelliteImageLoader {
     private final String spectralEndpoint;
 
     public SatelliteImageLoader(HttpClient httpClient, String baseUrl, String apiKey,
-                                String userAgent, String spectralEndpoint) {
+                                String userAgent, String spectralEndpoint, Long recoveryTimeMS) {
         this.httpClient = httpClient;
         this.baseUrl = baseUrl;
         this.apiKey = apiKey;
         this.userAgent = userAgent;
         this.spectralEndpoint = spectralEndpoint;
+        this.recoveryTimeMS = recoveryTimeMS;
     }
 
     public Map<Long, FieldSpectralResponse> fetchSpectralData(List<Long> ids, String fromDate, String toDate) {
@@ -124,7 +125,7 @@ public class SatelliteImageLoader {
 
         if (circuitBreaker.get()) {
             long elapsed = System.currentTimeMillis() - lastErrorTime.get();
-            if (elapsed > RECOVERY_TIME_MS) {
+            if (elapsed > recoveryTimeMS) {
                 log.info("Circuit breaker is HALF-OPEN. Testing API with a probe request...");
             } else {
                 return null;
@@ -155,7 +156,7 @@ public class SatelliteImageLoader {
             int maxAttempts = 3;
             long waitTime = 2000;
             for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-                if (circuitBreaker.get() && (System.currentTimeMillis() - lastErrorTime.get() < RECOVERY_TIME_MS)) {
+                if (circuitBreaker.get() && (System.currentTimeMillis() - lastErrorTime.get() < recoveryTimeMS)) {
                     return null;
                 }
 
