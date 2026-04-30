@@ -3,6 +3,8 @@ package com.viking.field_passport_generator.config;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.viking.field_passport_generator.data.dto.satellite.SatelliteCaptureRule;
+import com.viking.field_passport_generator.model.SpectralIndex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.*;
 
 public class AppConfig {
     private static final Logger log = LoggerFactory.getLogger(AppConfig.class);
@@ -74,7 +77,19 @@ public class AppConfig {
 
         String val = getString(key);
         try {
-            return val!= null ? Integer.parseInt(val.trim()) : defaultValue;
+            return val != null ? Integer.parseInt(val.trim()) : defaultValue;
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    public long getLong(String key, long defaultValue) {
+        JsonNode node = findNode(key);
+        if (node.isNumber()) return node.asLong();
+
+        String val = getString(key);
+        try {
+            return val != null ? Long.parseLong(val.trim()) : defaultValue;
         } catch (NumberFormatException e) {
             return defaultValue;
         }
@@ -86,5 +101,38 @@ public class AppConfig {
 
         String val = getString(key);
         return val != null ? Boolean.parseBoolean(val.trim()) : defaultValue;
+    }
+
+    public Set<SpectralIndex> getSpectralIndex(String key, Set<SpectralIndex> defaultValue) {
+        JsonNode node = findNode(key);
+
+        if (node.isMissingNode() || !node.isArray()) {
+            return defaultValue;
+        }
+
+        Set<SpectralIndex> result = new HashSet<>();
+        for (JsonNode item : node) {
+            try {
+                result.add(SpectralIndex.valueOf(item.asText().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                log.warn("Unknown spectral index in config: {}", item.asText());
+            }
+        }
+        return result.isEmpty() ? defaultValue : result;
+    }
+
+    public List<SatelliteCaptureRule> getMappingResult(String key) {
+        JsonNode node = findNode(key);
+        if (node.isMissingNode() || !node.isArray()) {
+            return Collections.emptyList();
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            return mapper.readerForListOf(SatelliteCaptureRule.class).readValue(node);
+        } catch (IOException e) {
+            log.error("Failed to parse mapping rules from config at key : {}", key);
+            return Collections.emptyList();
+        }
     }
 }

@@ -3,14 +3,8 @@ package com.viking.field_passport_generator.data.aggregator;
 import com.viking.field_passport_generator.data.dictionary.MachineDictionary;
 import com.viking.field_passport_generator.data.dictionary.TmcDictionary;
 import com.viking.field_passport_generator.data.dto.*;
-import com.viking.field_passport_generator.mapper.NoteMapper;
-import com.viking.field_passport_generator.mapper.OperationMapper;
-import com.viking.field_passport_generator.mapper.PassportMapper;
-import com.viking.field_passport_generator.mapper.TechJournalMapper;
-import com.viking.field_passport_generator.model.FieldPassport;
-import com.viking.field_passport_generator.model.NoteSection;
-import com.viking.field_passport_generator.model.OperationTableRow;
-import com.viking.field_passport_generator.model.TechJournalTableRow;
+import com.viking.field_passport_generator.mapper.*;
+import com.viking.field_passport_generator.model.*;
 import com.viking.field_passport_generator.util.YearUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,14 +19,16 @@ public class FieldDataAggregator {
     private final OperationMapper operationMapper;
     private final NoteMapper noteMapper;
     private final TechJournalMapper techJournalMapper;
+    private final SatelliteMapper satelliteMapper;
     private final ZoneId timezone;
     private static final Logger log = LoggerFactory.getLogger(FieldDataAggregator.class);
 
     public FieldDataAggregator(OperationMapper operationMapper, NoteMapper noteMapper,
-                               TechJournalMapper techJournalMapper, ZoneId timezone) {
+                               TechJournalMapper techJournalMapper, SatelliteMapper satelliteMapper, ZoneId timezone) {
         this.operationMapper = operationMapper;
         this.noteMapper = noteMapper;
         this.techJournalMapper = techJournalMapper;
+        this.satelliteMapper = satelliteMapper;
         this.timezone = timezone;
     }
 
@@ -86,8 +82,11 @@ public class FieldDataAggregator {
         List<OperationTableRow> operationTableRows = operationMapper.mapToTableRow(cleanOps, tmcDictionary);
         NoteSection noteSection = noteMapper.map(fieldNotes, String.valueOf(passportYear));
         List<TechJournalTableRow> techJournalTableRows = techJournalMapper.mapToTableRow(cleanOps, machineDictionary);
+        List<SatelliteImage> satelliteImages = satelliteMapper.map(fieldId, operationTableRows);
 
-        return PassportMapper.mapToDomain(rawField, operationTableRows, noteSection, techJournalTableRows);
+        satelliteImages.sort(Comparator.comparing(SatelliteImage::getPlanDate));
+        return PassportMapper.mapToDomain(rawField, operationTableRows, noteSection, techJournalTableRows,
+                satelliteImages);
     }
 
     private List<RawOperationData> filterOperationsByYear(List<RawOperationData> ops, int targetYear) {

@@ -405,4 +405,50 @@ public final class PdfUIHelper {
         }
         return table;
     }
+
+    /**
+     * Выводит спутниковые снимки один за другим в столбик
+     */
+    public static void addSatelliteImagesColumn(Document document, List<SatelliteImage> images) throws DocumentException {
+        for (SatelliteImage satImg : images) {
+            // Создаем таблицу из одной колонки, чтобы картинка и текст не разрывались переносом страницы
+            PdfPTable table = new PdfPTable(1);
+            table.setWidthPercentage(100f);
+            table.setSpacingBefore(20f);
+            table.setKeepTogether(true); // Критично: держит картинку и подпись на одной странице
+
+            PdfPCell cell = new PdfPCell();
+            cell.setBorder(Rectangle.NO_BORDER);
+            cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+
+            try {
+                String descriptionText = String.format("%s\nПлановая дата: %s | Дата снимка: %s",
+                        satImg.getDescription(),
+                        satImg.getPlanDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy")),
+                        satImg.getActualDate() != null ? satImg.getActualDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy")) : "---"
+                );
+                Paragraph p = new Paragraph(descriptionText, FONT_TABLE_BODY);
+                p.setAlignment(Element.ALIGN_CENTER);
+                p.setSpacingAfter(10f);
+                cell.addElement(p);
+
+                if (satImg.getImageBytes() != null) {
+                    Image img = Image.getInstance(satImg.getImageBytes());
+
+                    img.scaleToFit(500f, 1000f);
+                    img.setAlignment(Image.ALIGN_CENTER);
+                    cell.addElement(img);
+                } else {
+                    Paragraph missing = new Paragraph("Снимок не найден для даты: " + satImg.getPlanDate(), FONT_TABLE_BODY);
+                    missing.setAlignment(Element.ALIGN_CENTER);
+                    cell.addElement(missing);
+                }
+            } catch (Exception e) {
+                log.error("Error rendering satellite image: {}", e.getMessage());
+                cell.addElement(new Phrase("Ошибка отрисовки снимка"));
+            }
+            table.addCell(cell);
+            document.add(table);
+        }
+    }
 }
