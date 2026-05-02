@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.viking.field_passport_generator.data.dto.satellite.FieldSpectralResponse;
+import okhttp3.HttpUrl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,30 +29,41 @@ public class SatelliteImageLoader {
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private final AtomicBoolean circuitBreaker = new AtomicBoolean(false);
     private final AtomicLong lastErrorTime = new AtomicLong(0);
-    private final long recoveryTimeMS;
     private final Semaphore networkSemaphore = new Semaphore(5);
 
-    private final HttpClient httpClient;
+    private final InternalHttpClient internalClient;
     private final String baseUrl;
     private final String apiKey;
     private final String userAgent;
     private final String spectralEndpoint;
 
-    public SatelliteImageLoader(HttpClient httpClient, String baseUrl, String apiKey,
-                                String userAgent, String spectralEndpoint, Long recoveryTimeMS) {
-        this.httpClient = httpClient;
+    public SatelliteImageLoader(InternalHttpClient internalClient, String baseUrl, String apiKey,
+                                String userAgent, String spectralEndpoint) {
+        this.internalClient = internalClient;
         this.baseUrl = baseUrl;
         this.apiKey = apiKey;
         this.userAgent = userAgent;
         this.spectralEndpoint = spectralEndpoint;
-        this.recoveryTimeMS = recoveryTimeMS;
     }
 
     public Map<Long, FieldSpectralResponse> fetchSpectralData(List<Long> ids, String fromDate, String toDate) {
+        HttpUrl base = HttpUrl.parse(baseUrl);
+        if (base == null) {
+            log.error("API Error: base URL: {} is incorrect. Check configuration", baseUrl);
+            return Map.of();
+        }
+        HttpUrl fullUrl = base.resolve(spectralEndpoint);
+        if (fullUrl == null) {
+            log.error("API Error: unsuccessful attempt to build path from endpoint: {}", spectralEndpoint);
+            return Map.of();
+        }
+        HttpUrl.Builder urlBuilder = fullUrl.newBuilder();
+        urlBuilder.addQueryParameter("apiKey", apiKey);
+        urlBuilder.addQueryParameter("fromDate", fromDate);
+        urlBuilder.addQueryParameter("toDate", toDate);
+        ids.forEach(id -> urlBuilder.addQueryParameter("id", String.valueOf(id)));
 
-
-        URI uri = buildUri(ids, fromDate, toDate);
-        log.debug("Fetch satellite data: {}", uri);
+        URI uri = urlBuilder.build().uri();
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uri)
@@ -61,52 +73,18 @@ public class SatelliteImageLoader {
                 .GET()
                 .build();
 
-        try {
-            HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-
-            if (response.statusCode() != 200) {
-                log.error("API вернул код {}", response.statusCode());
-                return Map.of();
+        HttpResponse<InputStream> response = internalClient.sendRequest(request, HttpResponse.BodyHandlers.ofInputStream());
+        if (response == null) return Map.of();
+        try (InputStream is = response.body()) {
+            JsonNode node = objectMapper.readTree(is);
+            if (node.isArray()) {
+                List<FieldSpectralResponse> rawData = objectMapper.convertValue(node, new TypeReference<>() {});
+                return rawData.stream().collect(Collectors.toMap(FieldSpectralResponse::id, f -> f));
             }
-
-            try (InputStream is = response.body()) {
-                // Читаем как дерево (JsonNode), это сработает и для { }, и для [ ]
-                JsonNode node = objectMapper.readTree(is);
-
-                List<FieldSpectralResponse> rawData;
-
-                if (node.isArray()) {
-                    // Если пришел список (как ты и ждешь)
-                    rawData = objectMapper.convertValue(node, new TypeReference<>() {});
-                } else if (node.isObject()) {
-                    // Если пришел объект, логируем его, чтобы понять, что там внутри
-                    log.warn("Вместо списка пришел объект! Возможно, это ошибка или обертка: {}", node);
-
-                    // Если данные лежат внутри поля, например "data" или "items", достаем их:
-                    if (node.has("data") && node.get("data").isArray()) {
-                        rawData = objectMapper.convertValue(node.get("data"), new TypeReference<>() {});
-                    } else {
-                        return Map.of(); // Если это просто объект ошибки
-                    }
-                } else {
-                    return Map.of();
-                }
-
-                return rawData.stream()
-                        .collect(Collectors.toMap(
-                                FieldSpectralResponse::id,
-                                f -> f,
-                                (existing, replacement) -> existing
-                        ));
-            }
-        } catch (InterruptedException e) {
-            log.error("Запрос прерван: {}", e.getMessage());
-            Thread.currentThread().interrupt();
-            return Map.of();
         } catch (IOException e) {
-            log.error("Ошибка ввода-вывода (возможно, Jackson или сеть): {}", e.getMessage());
-            return Map.of();
+            log.error("Jackson parsing error: {}", e.getMessage());
         }
+        return Map.of();
     }
 
     private String determineExtension(String url) {
@@ -118,130 +96,10 @@ public class SatelliteImageLoader {
     }
 
     public byte[] downloadBytes(String path) {
-        // 1. Быстрая проверка: если предохранитель выбит или ссылки нет — даже не пытаемся
-        if (path == null || path.isBlank()) {
-            return null;
-        }
-
-        if (circuitBreaker.get()) {
-            long elapsed = System.currentTimeMillis() - lastErrorTime.get();
-            if (elapsed > recoveryTimeMS) {
-                log.info("Circuit breaker is HALF-OPEN. Testing API with a probe request...");
-            } else {
-                return null;
-            }
-        }
-        URI fullUri;
-        try {
-            fullUri = URI.create(baseUrl).resolve(path);
-        } catch (IllegalArgumentException e) {
-            log.error("Invalid path: {}", path);
-            return null;
-        }
-
-        // 3. Заходим под защиту Семафора
-        try {
-            networkSemaphore.acquire(); // Ждем разрешения, если уже качается 5 файлов
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(fullUri)
-                    .header("User-Agent", userAgent)
-                    .timeout(Duration.ofSeconds(15))
-                    .GET()
-                    .build();
-
-            log.debug("Загрузка снимка: {}", fullUri);
-
-            // 5. Реакция на перегрузку API или ошибки сервера
-            int maxAttempts = 3;
-            long waitTime = 2000;
-            for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-                if (circuitBreaker.get() && (System.currentTimeMillis() - lastErrorTime.get() < recoveryTimeMS)) {
-                    return null;
-                }
-
-                HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
-                int status = response.statusCode();
-                // 4. Обработка результата
-                if (status == 200) {
-                    if (circuitBreaker.get()) {
-                        log.info("Api recovered! Circuit breaker is now CLOSED");
-                        circuitBreaker.set(false);
-                        lastErrorTime.set(0);
-                    }
-                    byte[] data = response.body();
-                    // Проверка на размер (заглушки обычно весят очень мало)
-                    if (data != null && data.length > 1024) {
-                        return data;
-                    } else {
-                        log.warn("Снимок скачан, но размер подозрительно мал: {} байт", data != null ? data.length : 0);
-                        return null;
-                    }
-                }
-                if (status == 429) {
-                    log.error("API 429 (Too Many Requests). Tripping circuit breaker.");
-                    circuitBreaker.set(true);
-                    lastErrorTime.set(System.currentTimeMillis());
-                    return null;
-                }
-
-                if (status >= 500) {
-                    log.warn("Attempt {}/{} | Status {} | Retrying in {}ms", attempt, maxAttempts, status, waitTime);
-                    if (attempt < maxAttempts) {
-                        Thread.sleep(waitTime);
-                        waitTime *= 2;
-                    } else {
-                        log.error("Max attempts reached for 5xx. Tripping circuit breaker.");
-                        circuitBreaker.set(true);
-                        lastErrorTime.set(System.currentTimeMillis());
-                    }
-                } else {
-                    log.warn("Non-retryable error: {}. Skipping: {}", status, fullUri);
-                    break;
-                }
-            }
-        } catch (InterruptedException e) {
-            log.error("Поток загрузки прерван");
-            Thread.currentThread().interrupt();
-        } catch (IOException e) {
-            log.error("Network I/O error {}: {}", fullUri, e.getMessage());
-        } catch (Exception e) {
-            log.error("Unexpected error: {}", e.getMessage());
-        } finally {
-            networkSemaphore.release();
-        }
-        return null;
+        return internalClient.downloadBytes(this.baseUrl, path, this.userAgent);
     }
 
     public boolean isCircuitBroken() {
         return circuitBreaker.get();
     }
-
-    private URI buildUri(List<Long> ids, String fromDate, String toDate) {
-        try {
-            List<String> params = new ArrayList<>();
-            params.add("apiKey=" + apiKey);
-            params.add("fromDate=" + fromDate);
-            params.add("toDate=" + toDate);
-
-            for (Long id : ids) {
-                params.add("id=" + id);
-            }
-
-            String query = String.join("&", params);
-
-            URI base = URI.create(baseUrl);
-            return new URI(
-                    base.getScheme(),
-                    base.getAuthority(),
-                    base.getPath() + spectralEndpoint,
-                    query,
-                    null
-            );
-        } catch (URISyntaxException e) {
-            log.error("Failed to construct spectral data URI for ids: {}. Reason: {}", ids, e.getMessage());
-        }
-        return null;
-    }
-
 }

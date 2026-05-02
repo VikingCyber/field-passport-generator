@@ -3,19 +3,12 @@ package com.viking.field_passport_generator.service;
 import com.viking.field_passport_generator.data.dto.RawApiResponse;
 import com.viking.field_passport_generator.data.dto.RawFieldData;
 import com.viking.field_passport_generator.data.dto.RawNotesResponse;
-import com.viking.field_passport_generator.data.dto.satellite.FieldSpectralResponse;
-import com.viking.field_passport_generator.data.dto.satellite.IndexData;
-import com.viking.field_passport_generator.data.dto.satellite.SatelliteScan;
 import com.viking.field_passport_generator.model.FieldPassport;
-import com.viking.field_passport_generator.model.SatelliteImage;
 import com.viking.field_passport_generator.util.JsonDataParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -60,7 +53,7 @@ public class ImageSyncService {
                 .map(RawFieldData::fieldId)
                 .collect(Collectors.toSet());
 
-        log.info("Found {} fields for image download", allIds.size());
+        log.debug("Found {} fields for image download", allIds.size());
 
         // 4. Отправляем в кэш
         cacheService.collectMetadata(allIds);

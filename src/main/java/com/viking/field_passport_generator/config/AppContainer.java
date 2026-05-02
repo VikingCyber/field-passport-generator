@@ -4,6 +4,7 @@ import com.viking.field_passport_generator.data.aggregator.FieldDataAggregator;
 import com.viking.field_passport_generator.data.dto.satellite.SatelliteCaptureRule;
 import com.viking.field_passport_generator.data.provider.DataProvider;
 import com.viking.field_passport_generator.data.provider.FileDataProvider;
+import com.viking.field_passport_generator.http.InternalHttpClient;
 import com.viking.field_passport_generator.http.NoteImageLoader;
 import com.viking.field_passport_generator.http.SatelliteImageLoader;
 import com.viking.field_passport_generator.mapper.NoteMapper;
@@ -34,15 +35,13 @@ public class AppContainer {
         // --- 1. Infrastructure Setup ---
         // Initialize common utilities used across different services
         JsonDataParser jsonParser = new JsonDataParser();
-        HttpClient httpClient = HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
+        InternalHttpClient noteClient = new InternalHttpClient(10, 60_000L);
+        InternalHttpClient satelliteClient = new InternalHttpClient(5, 60_000L);
 
         // --- 2. Image Processing Layer ---
         // Configure image loading, caching, and synchronization
         NoteImageLoader noteImageLoader = new NoteImageLoader(
-                httpClient,
+                noteClient,
                 config.getString("agro.api.base-url"),
                 config.getString("agro.api.key"),
                 config.getString("agro.api.user-agent"),
@@ -50,13 +49,11 @@ public class AppContainer {
         );
 
         SatelliteImageLoader satelliteLoader = new SatelliteImageLoader(
-                httpClient,
+                satelliteClient,
                 config.getString("agro.api.base-url"),
                 config.getString("agro.api.key"),
                 config.getString("agro.api.user-agent"),
-                "spectralIndices",
-                config.getLong("agro.satellite.recovery-time", 60_000)
-
+                config.getString("agro.api.endpoints.spectral-indices")
         );
 
         Path cacheDir = Path.of(config.getString("app.cache-dir", "cache"));
