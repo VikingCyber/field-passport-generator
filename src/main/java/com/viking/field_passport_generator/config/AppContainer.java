@@ -7,6 +7,8 @@ import com.viking.field_passport_generator.data.provider.FileDataProvider;
 import com.viking.field_passport_generator.http.InternalHttpClient;
 import com.viking.field_passport_generator.http.NoteImageLoader;
 import com.viking.field_passport_generator.http.SatelliteImageLoader;
+import com.viking.field_passport_generator.http.strategy.NoteStrategy;
+import com.viking.field_passport_generator.http.strategy.SatelliteStrategy;
 import com.viking.field_passport_generator.mapper.NoteMapper;
 import com.viking.field_passport_generator.mapper.OperationMapper;
 import com.viking.field_passport_generator.mapper.SatelliteMapper;
@@ -18,7 +20,6 @@ import com.viking.field_passport_generator.service.PassportGeneratorService;
 import com.viking.field_passport_generator.service.PdfGeneratorService;
 import com.viking.field_passport_generator.util.JsonDataParser;
 
-import java.net.http.HttpClient;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.ZoneId;
@@ -59,8 +60,10 @@ public class AppContainer {
         Path cacheDir = Path.of(config.getString("app.cache-dir", "cache"));
         String fromDate = config.getString("agro.satellite.fromDate", "20240101");
         String toDate = config.getString("agro.satellite.toDate", "20261231");
-        ImageCacheService noteCache = new ImageCacheService(noteImageLoader, satelliteLoader, cacheDir, fromDate, toDate);
-        this.syncService = new ImageSyncService(noteCache, jsonParser);
+        NoteStrategy noteStrategy = new NoteStrategy(noteImageLoader, cacheDir);
+        SatelliteStrategy satelliteStrategy = new SatelliteStrategy(satelliteLoader, fromDate, toDate, jsonParser, cacheDir);
+        ImageCacheService imageCache = new ImageCacheService(cacheDir, List.of(noteStrategy, satelliteStrategy));
+        this.syncService = new ImageSyncService(imageCache, jsonParser);
 
         // --- 3. Data Processing Layer (Mappers & Aggregators) ---
         // Convert raw configuration strings into typed domain objects
@@ -87,7 +90,6 @@ public class AppContainer {
         long minSpaceBytes = (long) config.getInt("app.min-free-space-mb", 1024) * 1024L * 1024L;
 
         this.passportGeneratorService = new PdfGeneratorService(
-                noteCache::getImageBytes, // Functional interface for decoupled image retrieval
                 minSpaceBytes,
                 outputDir
         );

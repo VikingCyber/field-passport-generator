@@ -4,6 +4,7 @@ import com.viking.field_passport_generator.data.dto.RawApiResponse;
 import com.viking.field_passport_generator.data.dto.RawFieldData;
 import com.viking.field_passport_generator.data.dto.RawNotesResponse;
 import com.viking.field_passport_generator.model.FieldPassport;
+import com.viking.field_passport_generator.model.SourceType;
 import com.viking.field_passport_generator.util.JsonDataParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +33,7 @@ public class ImageSyncService {
                 .flatMap(note -> note.attachments().stream())
                 .collect(Collectors.toSet());
 
-        cacheService.preloadNotes(allIds);
+        cacheService.sync(allIds, SourceType.NOTE);
     }
 
     public void warmUpSatelliteMetadata(String fieldsJsonPath) {
@@ -56,11 +57,16 @@ public class ImageSyncService {
         log.debug("Found {} fields for image download", allIds.size());
 
         // 4. Отправляем в кэш
-        cacheService.collectMetadata(allIds);
+        cacheService.sync(allIds, SourceType.SATELLITE);
     }
 
     public void prepareSatelliteImages(List<FieldPassport> passports) {
         log.info("Подготовка спутниковых снимков для {} паспортов", passports.size());
-        passports.forEach(p -> cacheService.enrich(p.satelliteImages()));
+        passports.forEach(p -> cacheService.fillImages(p.satelliteImages()));
+    }
+
+    public void prepareNoteImages(List<FieldPassport> passports) {
+        log.info("Подготовка фотографий заметок для {} сезонов", passports.size());
+        passports.forEach(p -> cacheService.fillImages(p.notesSection().images()));
     }
 }

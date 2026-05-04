@@ -41,7 +41,7 @@ public class SatelliteMapper {
 
     private void addImages(List<SatelliteImage> result, Long fieldId, LocalDate date, String description) {
         for (SpectralIndex idx : indices) {
-            result.add(new SatelliteImage(fieldId, date, description, idx));
+            result.add(new SatelliteImage(String.valueOf(fieldId), date, description, idx));
         }
     }
 }
