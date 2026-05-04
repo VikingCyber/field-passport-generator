@@ -39,15 +39,19 @@ public class InternalHttpClient {
             return null;
         }
 
+        boolean acquired = false;
         try {
             networkSemaphore.acquire();
+            acquired = true;
             return executeWithRetries(request, handler);
         } catch (InterruptedException e) {
             log.error("Request interrupted: {}", request.uri());
             Thread.currentThread().interrupt();
             return null;
         } finally {
-            networkSemaphore.release();
+            if (acquired) {
+                networkSemaphore.release();
+            }
         }
     }
 
@@ -87,7 +91,6 @@ public class InternalHttpClient {
         long elapsed = System.currentTimeMillis() - lastErrorTime.get();
         if (elapsed > recoveryTimeMs) {
             log.info("Circuit breaker is HALF-OPEN. Testing API with a probe request...");
-        } else {
             return false;
         }
         return true;
@@ -106,6 +109,7 @@ public class InternalHttpClient {
                     if (circuitBreaker.get()) {
                         log.info("API recovered! Circuit breaker is now CLOSED");
                         circuitBreaker.set(false);
+                        lastErrorTime.set(0);
                     }
                     return response;
                 }
