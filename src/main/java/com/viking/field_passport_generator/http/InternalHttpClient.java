@@ -115,33 +115,48 @@ public class InternalHttpClient {
                 }
 
                 if (status == 429) {
-                    tripCircuitBreaker("API 429 (Too many Requests)");
+                    tripCircuitBreaker("API 429 (Too many Requests) for URI: " + request.uri());
                     return null;
                 }
 
                 if (status >= 500) {
-                    log.warn("Attempt {}/{} | Status {} | Retrying in {}ms", attempt, maxAttempts, status, waitTime);
                     if (attempt < maxAttempts) {
-                        Thread.sleep(waitTime);
-                        waitTime *= 2;
-                        continue;
+                        waitTime = handleRetry(attempt, maxAttempts, "Server Error " + status, waitTime, request);
+                    } else {
+                        tripCircuitBreaker("Max attempts reached for 5xx errors");
                     }
-                    tripCircuitBreaker("Max attempts reached for 5xx errors");
                 } else {
                     log.warn("Non-retryable error: {} for URI: {}", status, request.uri());
                     break;
                 }
+            } catch (IOException e) {
+                log.error("Network I/O error {}: {} | Attempt {}/{}", request.uri(), e.getMessage(), attempt, maxAttempts);
+                if (attempt < maxAttempts) {
+                    waitTime = handleRetry(attempt, maxAttempts, "Network I/O: " + e.getMessage(), waitTime, request);
+                } else {
+                    tripCircuitBreaker("Max attempts reached after Network I/O errors: " + request.uri());
+                }
             } catch (InterruptedException e) {
-                log.error("Download thread interrupted. URI: {}, Reason: {}", request.uri(), e.getMessage());
+                log.error("Thread interrupted during execution for URI: {}", request.uri());
                 Thread.currentThread().interrupt();
                 break;
-            } catch (IOException e) {
-                log.error("Network I/O error {}: {}", request.uri(), e.getMessage());
             } catch (Exception e) {
-                log.error("Unexpected error: {}", e.getMessage());
+                log.error("Critical unexpected error during request to {}: {}", request.uri(), e.getMessage());
+                throw new RuntimeException("Fatal error in HttpClient", e);
             }
         }
         return null;
+    }
+
+    private long handleRetry(int attempt, int maxAttempts, String errorMessage, long wait, HttpRequest request) {
+        log.warn("Attempt {}/{} failed for {}: {}. Retrying in {}ms...", attempt, maxAttempts, request.uri(), errorMessage, wait);
+        try {
+            Thread.sleep(wait);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Retry wait interrupted", e);
+        }
+        return wait * 2;
     }
 
     private void tripCircuitBreaker(String reason) {

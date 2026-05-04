@@ -58,10 +58,8 @@ public class AppContainer {
         );
 
         Path cacheDir = Path.of(config.getString("app.cache-dir", "cache"));
-        String fromDate = config.getString("agro.satellite.fromDate", "20240101");
-        String toDate = config.getString("agro.satellite.toDate", "20261231");
         NoteStrategy noteStrategy = new NoteStrategy(noteImageLoader, cacheDir);
-        SatelliteStrategy satelliteStrategy = new SatelliteStrategy(satelliteLoader, fromDate, toDate, jsonParser, cacheDir);
+        SatelliteStrategy satelliteStrategy = new SatelliteStrategy(satelliteLoader, jsonParser, cacheDir, config.getSatelliteConfig());
         ImageCacheService imageCache = new ImageCacheService(cacheDir, List.of(noteStrategy, satelliteStrategy));
         this.syncService = new ImageSyncService(imageCache, jsonParser);
 

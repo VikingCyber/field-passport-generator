@@ -133,12 +133,11 @@ public class PdfGeneratorService implements PassportGeneratorService {
                 byte[] bytes = img.getImageBytes();
                 if (bytes != null) {
                     photoMap.put(img.getComplexIndex(), bytes);
-                    log.info("Добавлено фото: индекс={}, размер={} байт", img.getComplexIndex(), bytes.length);
+                    log.debug("Добавлено фото: индекс={}, размер={} байт", img.getComplexIndex(), bytes.length);
                 } else {
                     log.warn("Пустые данные для фото: индекс={}", img.getComplexIndex());
                 }
             });
-        log.info("Итоговый размер photoMap: {}", photoMap.size());
 
         document.newPage();
         document.add(PdfUIHelper.createPhotoGrid(writer, photoMap));

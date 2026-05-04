@@ -1,5 +1,6 @@
 package com.viking.field_passport_generator.http.strategy;
 
+import com.viking.field_passport_generator.config.SatelliteConfig;
 import com.viking.field_passport_generator.data.dto.satellite.FieldSpectralResponse;
 import com.viking.field_passport_generator.data.dto.satellite.SatelliteScan;
 import com.viking.field_passport_generator.http.SatelliteImageLoader;
@@ -30,18 +31,16 @@ public class SatelliteStrategy implements ImageProviderStrategy {
     private static final Logger log = LoggerFactory.getLogger(SatelliteStrategy.class);
 
     private final SatelliteImageLoader loader;
-    private final String fromDate;
-    private final String toDate;
     private final JsonDataParser jsonParser;
     private final Path cachePath;
+    private final SatelliteConfig config;
 
-    public SatelliteStrategy(SatelliteImageLoader loader, String fromDate, String toDate,
-                             JsonDataParser jsonParser, Path cachePath) {
+    public SatelliteStrategy(SatelliteImageLoader loader, JsonDataParser jsonParser, Path cachePath,
+                             SatelliteConfig config) {
         this.loader = loader;
-        this.fromDate = fromDate;
-        this.toDate = toDate;
         this.jsonParser = jsonParser;
         this.cachePath = cachePath;
+        this.config = config;
     }
 
     /**
@@ -157,8 +156,8 @@ public class SatelliteStrategy implements ImageProviderStrategy {
                         acquired = true;
                         Map<Long, FieldSpectralResponse> remote = loader.fetchSpectralData(
                                 batch,
-                                fromDate,
-                                toDate
+                                config.fromDate(),
+                                config.toDate()
                         );
                         Map<Long, FieldSpectralResponse> toSave = new HashMap<>();
                         for (Long id : batch) {
@@ -202,11 +201,11 @@ public class SatelliteStrategy implements ImageProviderStrategy {
             LocalDate scanDate = LocalDate.parse(scan.date());
             long daysDiff = ChronoUnit.DAYS.between(targetDate, scanDate);
 
-            if (daysDiff >= 0 && daysDiff <= 7) {
-                if (scan.cloud() > 0.8) continue;
+            if (daysDiff >= 0 && daysDiff <= config.scanWindowDays()) {
+                if (scan.cloud() > config.maxCloudThreshold()) continue;
 
                 // Вес: дни + облачность с коэффициентом "важности"
-                double currentWeight = daysDiff + (scan.cloud() * 5.0);
+                double currentWeight = daysDiff + (scan.cloud() * config.cloudWeightFactor());
 
                 if (currentWeight < minWeight) {
                     minWeight = currentWeight;

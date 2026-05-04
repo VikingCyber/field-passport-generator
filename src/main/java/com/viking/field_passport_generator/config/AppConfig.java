@@ -135,4 +135,19 @@ public class AppConfig {
             return Collections.emptyList();
         }
     }
+
+    public double getDouble(String key, double defaultValue) {
+        JsonNode node = findNode(key);
+        return node.isNumber() ? node.asDouble() : defaultValue;
+    }
+
+    public SatelliteConfig getSatelliteConfig() {
+        return new SatelliteConfig(
+                getString("agro.satellite.fromDate", "20240101"),
+                getString("agro.satellite.toDate"),
+                getInt("agro.satellite.scan-window-days", 7),
+                getDouble("agro.satellite.cloud-threshold", 0.8),
+                getDouble("agro.satellite.cloud-weight-factor", 5.0)
+        );
+    }
 }
