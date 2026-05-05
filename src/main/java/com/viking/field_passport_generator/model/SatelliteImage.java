@@ -2,8 +2,8 @@ package com.viking.field_passport_generator.model;
 
 import java.time.LocalDate;
 
-public class SatelliteImage {
-    private final Long fieldId;
+public class SatelliteImage implements ImageSource {
+    private final String fieldId;
     private final String description;
     private SpectralIndex index;
     private LocalDate planDate;
@@ -11,14 +11,25 @@ public class SatelliteImage {
     private String remoteId;
     private byte[] imageBytes;
 
-    public SatelliteImage(Long fieldId, LocalDate planDate, String label, SpectralIndex index) {
+    public SatelliteImage(String fieldId, LocalDate planDate, String label, SpectralIndex index) {
         this.fieldId = fieldId;
         this.planDate = planDate;
         this.description = label;
         this.index = index;
     }
 
-    public Long getFieldId() { return fieldId; }
+    @Override
+    public String getId() { return fieldId; }
+
+    @Override
+    public SourceType getType() { return SourceType.SATELLITE; }
+
+    @Override
+    public byte[] getImageBytes() { return imageBytes; }
+
+    @Override
+    public void setImageBytes(byte[] imageBytes) { this.imageBytes = imageBytes; }
+
     public LocalDate getPlanDate() { return planDate; }
     public void setPlanDate(LocalDate planDate) { this.planDate = planDate; }
 
@@ -28,10 +39,6 @@ public class SatelliteImage {
     public SpectralIndex getIndex() { return index; }
     public void setIndex(SpectralIndex index) { this.index = index; }
     public String getDescription() { return description; }
-
-    public byte[] getImageBytes() { return imageBytes; }
-    public void setImageBytes(byte[] imageBytes) { this.imageBytes = imageBytes; }
-
     public boolean hasImage() {
         return imageBytes != null && imageBytes.length > 0;
     }

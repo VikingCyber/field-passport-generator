@@ -25,4 +25,9 @@ public record SatelliteScan(
         if (gli != null) map.put("gli", gli);
         return map;
     }
+
+    public String getUrl(String indexName) {
+        IndexData indexData = getAllIndices().get(indexName.toLowerCase());
+        return (indexData != null) ? indexData.url() : null;
+    }
 }

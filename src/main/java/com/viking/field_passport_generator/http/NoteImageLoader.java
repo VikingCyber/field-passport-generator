@@ -6,14 +6,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.viking.field_passport_generator.data.dto.DownloadInfo;
 import com.viking.field_passport_generator.data.dto.note.AttachmentResponse;
 import com.viking.field_passport_generator.data.dto.note.Data;
+import com.viking.field_passport_generator.util.ImageUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -24,7 +23,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-public class NoteImageLoader implements ImageLoader {
+public class NoteImageLoader {
     private static final Logger log = LoggerFactory.getLogger(NoteImageLoader.class);
 
     private final String attachmentsEndpoint;
@@ -32,21 +31,20 @@ public class NoteImageLoader implements ImageLoader {
 
     private final ObjectMapper objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    private final HttpClient httpClient;
+    private final InternalHttpClient internalClient;
     private final String baseUrl;
     private final String apiKey;
     private final String userAgent;
 
-    public NoteImageLoader(HttpClient httpClient, String baseUrl, String apiKey,
+    public NoteImageLoader(InternalHttpClient internalClient, String baseUrl, String apiKey,
                            String userAgent, String attachmentsEndpoint) {
-        this.httpClient = httpClient;
+        this.internalClient = internalClient;
         this.baseUrl = baseUrl;
         this.apiKey = apiKey;
         this.userAgent = userAgent;
         this.attachmentsEndpoint = attachmentsEndpoint;
     }
 
-    @Override
     public LoadResult load(Collection<String> ids) {
         Map<String, DownloadInfo> links = fetchDownloadUrls(new ArrayList<>(ids));
         Map<String, LoadedResource> images = new ConcurrentHashMap<>();
@@ -79,8 +77,7 @@ public class NoteImageLoader implements ImageLoader {
 
     public Map<String, DownloadInfo> fetchDownloadUrls(List<String> ids) {
         try {
-            Map<String, List<String>> requestMap = Map.of("ids", ids);
-            String jsonBody = objectMapper.writeValueAsString(requestMap);
+            String jsonBody = objectMapper.writeValueAsString(Map.of("ids", ids));
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(baseUrl).resolve(attachmentsEndpoint))
@@ -90,24 +87,13 @@ public class NoteImageLoader implements ImageLoader {
                     .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = internalClient.sendRequest(request, HttpResponse.BodyHandlers.ofString());
 
-            if (response.statusCode() == 200) {
-                Map<String, DownloadInfo> links = parseLinkResponse(response.body());
-
-                if (links.isEmpty()) {
-                    log.warn("API found NO images for this batch of {} IDs. Moving on...", ids.size());
-                } else if (links.size() < ids.size()) {
-                    log.info("API partially matched: {}/{} images found.", links.size(), ids.size());
-                } else {
-                    log.info("API match: All {} images found!", ids.size());
-                }
-                return links;
+            if (response != null && response.statusCode() == 200) {
+                return parseLinkResponse(response.body());
             }
-        } catch (JsonProcessingException e) {
-            log.error("Json Serialization Error: {}", e.getMessage());
         } catch (Exception e) {
-            log.error("Request Executing Error: {}", e.getMessage());
+            log.error("Error executing request: {}", e.getMessage());
         }
         return Map.of();
     }
@@ -123,51 +109,13 @@ public class NoteImageLoader implements ImageLoader {
                         Data::id,
                         d -> new DownloadInfo(
                                 d.meta().resourceUrl(),
-                                determineExtension(d)
+                                ImageUtils.determineExtension(d)
                                 ),
                                 (existing, replacement) -> existing
                 ));
     }
 
-    public byte[] downloadBytes(String url) {
-        log.debug("Скачивание файла по ссылке: {}", url);
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .headers("User-Agent", userAgent)
-                .timeout(Duration.ofSeconds(10))
-                .GET()
-                .build();
-
-        try {
-            HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
-            if (response.statusCode() == 200) {
-                byte[] data = response.body();
-                return (data != null && data.length > 1024) ? data : null;
-            } else {
-                log.warn("Server response code: {} for file: {}", response.statusCode(), url);
-            }
-        } catch (Exception e) {
-            log.error("Error downloading file: {}", e.getMessage());
-        }
-        return null;
-    }
-
-    private String determineExtension(Data data) {
-        if (data == null) {
-            return "jpg";
-        }
-        String mimeType = (data.meta() != null) ? data.meta().mimeType() : null;
-        String fileName = data.name();
-
-        if (fileName != null && fileName.contains(".")) {
-            return fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
-        }
-
-        if (mimeType != null && mimeType.contains("/")) {
-            String extension = mimeType.substring(mimeType.lastIndexOf("/") + 1).toLowerCase();
-            return "jpeg".equals(extension) ? "jpg" : extension;
-        }
-
-        return "jpg";
+    public byte[] downloadBytes(String path) {
+        return internalClient.downloadBytes(this.baseUrl, path, this.userAgent);
     }
 }

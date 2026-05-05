@@ -4,8 +4,11 @@ import com.viking.field_passport_generator.data.aggregator.FieldDataAggregator;
 import com.viking.field_passport_generator.data.dto.satellite.SatelliteCaptureRule;
 import com.viking.field_passport_generator.data.provider.DataProvider;
 import com.viking.field_passport_generator.data.provider.FileDataProvider;
+import com.viking.field_passport_generator.http.InternalHttpClient;
 import com.viking.field_passport_generator.http.NoteImageLoader;
 import com.viking.field_passport_generator.http.SatelliteImageLoader;
+import com.viking.field_passport_generator.http.strategy.NoteStrategy;
+import com.viking.field_passport_generator.http.strategy.SatelliteStrategy;
 import com.viking.field_passport_generator.mapper.NoteMapper;
 import com.viking.field_passport_generator.mapper.OperationMapper;
 import com.viking.field_passport_generator.mapper.SatelliteMapper;
@@ -17,7 +20,6 @@ import com.viking.field_passport_generator.service.PassportGeneratorService;
 import com.viking.field_passport_generator.service.PdfGeneratorService;
 import com.viking.field_passport_generator.util.JsonDataParser;
 
-import java.net.http.HttpClient;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.ZoneId;
@@ -34,15 +36,19 @@ public class AppContainer {
         // --- 1. Infrastructure Setup ---
         // Initialize common utilities used across different services
         JsonDataParser jsonParser = new JsonDataParser();
-        HttpClient httpClient = HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .connectTimeout(Duration.ofSeconds(10))
-                .build();
+        long recoveryTime = config.getLong("agro.api.recovery-time-ms", 60_000L);
+        long minDownloadSize = config.getLong("agro.api.min-downlad-size-bytes", 1024L);
+
+        int notesLimit = config.getInt("agro.api.satellite.max-concurrent-request", 10);
+        InternalHttpClient noteClient = new InternalHttpClient(notesLimit, recoveryTime, minDownloadSize);
+
+        int satelliteLimit = config.getInt("agro.api.notes.max-concurrent-request", 5);
+        InternalHttpClient satelliteClient = new InternalHttpClient(satelliteLimit, recoveryTime, minDownloadSize);
 
         // --- 2. Image Processing Layer ---
         // Configure image loading, caching, and synchronization
         NoteImageLoader noteImageLoader = new NoteImageLoader(
-                httpClient,
+                noteClient,
                 config.getString("agro.api.base-url"),
                 config.getString("agro.api.key"),
                 config.getString("agro.api.user-agent"),
@@ -50,20 +56,18 @@ public class AppContainer {
         );
 
         SatelliteImageLoader satelliteLoader = new SatelliteImageLoader(
-                httpClient,
+                satelliteClient,
                 config.getString("agro.api.base-url"),
                 config.getString("agro.api.key"),
                 config.getString("agro.api.user-agent"),
-                "spectralIndices",
-                config.getLong("agro.satellite.recovery-time", 60_000)
-
+                config.getString("agro.api.endpoints.spectral-indices")
         );
 
         Path cacheDir = Path.of(config.getString("app.cache-dir", "cache"));
-        String fromDate = config.getString("agro.satellite.fromDate", "20240101");
-        String toDate = config.getString("agro.satellite.toDate", "20261231");
-        ImageCacheService noteCache = new ImageCacheService(noteImageLoader, satelliteLoader, cacheDir, fromDate, toDate);
-        this.syncService = new ImageSyncService(noteCache, jsonParser);
+        NoteStrategy noteStrategy = new NoteStrategy(noteImageLoader, cacheDir);
+        SatelliteStrategy satelliteStrategy = new SatelliteStrategy(satelliteLoader, jsonParser, cacheDir, config.getSatelliteConfig());
+        ImageCacheService imageCache = new ImageCacheService(cacheDir, List.of(noteStrategy, satelliteStrategy));
+        this.syncService = new ImageSyncService(imageCache, jsonParser);
 
         // --- 3. Data Processing Layer (Mappers & Aggregators) ---
         // Convert raw configuration strings into typed domain objects
@@ -90,7 +94,6 @@ public class AppContainer {
         long minSpaceBytes = (long) config.getInt("app.min-free-space-mb", 1024) * 1024L * 1024L;
 
         this.passportGeneratorService = new PdfGeneratorService(
-                noteCache::getImageBytes, // Functional interface for decoupled image retrieval
                 minSpaceBytes,
                 outputDir
         );

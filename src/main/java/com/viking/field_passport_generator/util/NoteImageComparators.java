@@ -7,10 +7,10 @@ import java.util.Comparator;
 public class NoteImageComparators {
     public static Comparator<NoteImage> byComplexIndex() {
         return (img1, img2) -> {
-            String s1 = img1.complexIndex();
-            String s2 = img2.complexIndex();
+            String s1 = img1.getComplexIndex();
+            String s2 = img2.getComplexIndex();
 
-            int result = img1.id().compareTo(img2.id());
+            int result = img1.getId().compareTo(img2.getId());
             if (s1.equals(s2)) {
                 return result;
             }

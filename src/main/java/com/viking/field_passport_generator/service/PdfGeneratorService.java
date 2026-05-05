@@ -23,17 +23,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 
 public class PdfGeneratorService implements PassportGeneratorService {
 
     private static final Logger log = LoggerFactory.getLogger(PdfGeneratorService.class);
-    private final Function<String, byte[]> imageProvider;
     private final long minRequiredSpaceBytes;
     private final Path outputDir;
 
-    public PdfGeneratorService(Function<String, byte[]> imageProvider, long minRequiredSpaceBytes, Path outputDir) {
-        this.imageProvider = imageProvider;
+    public PdfGeneratorService(long minRequiredSpaceBytes, Path outputDir) {
         this.minRequiredSpaceBytes = minRequiredSpaceBytes;
         this.outputDir = Objects.requireNonNull(outputDir, "OutputDir must not be null");
     }
@@ -133,9 +130,12 @@ public class PdfGeneratorService implements PassportGeneratorService {
         noteImages.stream()
             .sorted(NoteImageComparators.byComplexIndex())
             .forEach(img -> {
-                byte[] bytes = imageProvider.apply(img.id());
+                byte[] bytes = img.getImageBytes();
                 if (bytes != null) {
-                    photoMap.put(img.complexIndex(), bytes);
+                    photoMap.put(img.getComplexIndex(), bytes);
+                    log.debug("Добавлено фото: индекс={}, размер={} байт", img.getComplexIndex(), bytes.length);
+                } else {
+                    log.warn("Пустые данные для фото: индекс={}", img.getComplexIndex());
                 }
             });
 
@@ -187,6 +187,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
                     successCount.incrementAndGet();
                     return true;
                 } catch (Exception e) {
+                    log.error("Generation failed: ", e);
                     return false;
                 } finally {
                     int current = processedCount.incrementAndGet();
