@@ -21,11 +21,13 @@ public class InternalHttpClient {
     private final Semaphore networkSemaphore;
     private final AtomicBoolean circuitBreaker = new AtomicBoolean(false);
     private final AtomicLong lastErrorTime = new AtomicLong(0);
+    private final long minDownloadSize;
     private final long recoveryTimeMs;
 
-    public InternalHttpClient(int maxConcurrentRequests, Long recoveryTimeMs) {
+    public InternalHttpClient(int maxConcurrentRequests, long recoveryTimeMs, long minDownloadSize) {
         this.networkSemaphore = new Semaphore(maxConcurrentRequests);
         this.recoveryTimeMs = recoveryTimeMs;
+        this.minDownloadSize = minDownloadSize;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .followRedirects(HttpClient.Redirect.NORMAL)
@@ -77,7 +79,7 @@ public class InternalHttpClient {
                     .build();
 
             HttpResponse<byte[]> response = sendRequest(request, HttpResponse.BodyHandlers.ofByteArray());
-            if (response != null && response.body() != null && response.body().length > 1024) {
+            if (response != null && response.body() != null && response.body().length > minDownloadSize) {
                 return response.body();
             } else {
                 log.warn("File downloaded but is suspiciously small or null for URI: {}", uri);

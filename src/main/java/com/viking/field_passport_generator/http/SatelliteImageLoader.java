@@ -12,24 +12,16 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 public class SatelliteImageLoader {
     private static final Logger log = LoggerFactory.getLogger(SatelliteImageLoader.class);
     private final ObjectMapper objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    private final AtomicBoolean circuitBreaker = new AtomicBoolean(false);
-    private final AtomicLong lastErrorTime = new AtomicLong(0);
-    private final Semaphore networkSemaphore = new Semaphore(5);
 
     private final InternalHttpClient internalClient;
     private final String baseUrl;
@@ -87,19 +79,8 @@ public class SatelliteImageLoader {
         return Map.of();
     }
 
-    private String determineExtension(String url) {
-        String cleanPath = url.contains("?") ? url.substring(0, url.indexOf("?")) : url;
-        if (cleanPath.contains(".")) {
-            return cleanPath.substring(cleanPath.lastIndexOf(".") + 1).toLowerCase();
-        }
-        return "png";
-    }
-
     public byte[] downloadBytes(String path) {
         return internalClient.downloadBytes(this.baseUrl, path, this.userAgent);
     }
 
-    public boolean isCircuitBroken() {
-        return circuitBreaker.get();
-    }
 }

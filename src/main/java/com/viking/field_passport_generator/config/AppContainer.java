@@ -36,8 +36,14 @@ public class AppContainer {
         // --- 1. Infrastructure Setup ---
         // Initialize common utilities used across different services
         JsonDataParser jsonParser = new JsonDataParser();
-        InternalHttpClient noteClient = new InternalHttpClient(10, 60_000L);
-        InternalHttpClient satelliteClient = new InternalHttpClient(5, 60_000L);
+        long recoveryTime = config.getLong("agro.api.recovery-time-ms", 60_000L);
+        long minDownloadSize = config.getLong("agro.api.min-downlad-size-bytes", 1024L);
+
+        int notesLimit = config.getInt("agro.api.satellite.max-concurrent-request", 10);
+        InternalHttpClient noteClient = new InternalHttpClient(notesLimit, recoveryTime, minDownloadSize);
+
+        int satelliteLimit = config.getInt("agro.api.notes.max-concurrent-request", 5);
+        InternalHttpClient satelliteClient = new InternalHttpClient(satelliteLimit, recoveryTime, minDownloadSize);
 
         // --- 2. Image Processing Layer ---
         // Configure image loading, caching, and synchronization
