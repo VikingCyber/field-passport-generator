@@ -12,6 +12,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.DateTimeException;
+import java.time.ZoneId;
 import java.util.*;
 
 public class AppConfig {
@@ -103,6 +105,11 @@ public class AppConfig {
         return val != null ? Boolean.parseBoolean(val.trim()) : defaultValue;
     }
 
+    public Path getPath(String key, String defaultValue) {
+        String val = getString(key, defaultValue);
+        return Path.of(val);
+    }
+
     public Set<SpectralIndex> getSpectralIndex(String key, Set<SpectralIndex> defaultValue) {
         JsonNode node = findNode(key);
 
@@ -141,13 +148,49 @@ public class AppConfig {
         return node.isNumber() ? node.asDouble() : defaultValue;
     }
 
+    public ZoneId getTimezone(String key, ZoneId defaultValue) {
+        JsonNode node = findNode(key);
+        if (!node.isMissingNode() && node.isTextual() && !node.asText().isBlank()) {
+            try {
+                return ZoneId.of(node.asText());
+            } catch (DateTimeException e) {
+                log.warn("Invalid timezone in config {}: {}", key, node.asText());
+            }
+        }
+        return defaultValue;
+    }
+
     public SatelliteConfig getSatelliteConfig() {
         return new SatelliteConfig(
+                getPath("agro.cache-dir", "cache/images"),
                 getString("agro.satellite.fromDate", "20240101"),
-                getString("agro.satellite.toDate"),
+                getString("agro.satellite.toDate", "20260101"),
                 getInt("agro.satellite.scan-window-days", 7),
                 getDouble("agro.satellite.cloud-threshold", 0.8),
-                getDouble("agro.satellite.cloud-weight-factor", 5.0)
+                getDouble("agro.satellite.cloud-weight-factor", 5.0),
+                getString("agro.satellite-extension", "png")
+        );
+    }
+
+    public NoteConfig getNoteConfig() {
+        return new NoteConfig(
+            getString("app.notes-dir", "notes"),
+            getString("app.notes-extension", "jpg"),
+            getPath("app.cache-dir", "cache/images")
+        );
+    }
+
+    public ChartConfig getChartConfig() {
+        return new ChartConfig(
+                getString("app.cache.charts.dir", "charts"),
+                getString("app.cache.charts.default-extension", "png"),
+                getString("app.cache.charts.file-prefix", "chart_"),
+                getInt("app.cache.charts.width", 800),
+                getInt("app.cache.charts.height", 400),
+                getPath("app.cache.path", "cache/images"),
+                getString("app.cache.charts.font-path", "fonts/NotoSans-Regular.ttf"),
+                getTimezone("app.timezone", ZoneId.of("Asia/Krasnoyarsk")),
+                getDouble("agro.satellite.cloud-threshold", 0.8)
         );
     }
 }

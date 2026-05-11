@@ -20,8 +20,7 @@ public class Main {
         AppConfig appConfig = new AppConfig();
         AppContainer container = new AppContainer(appConfig);
         log.info("Application Started.");
-        container.getSyncService().warmUpNotes("data/notesData.json");
-        container.getSyncService().warmUpSatelliteMetadata("data/fieldData.json");
+        container.getSyncService().warmUpAll("data/notesData.json", "data/fieldData.json");
 
         runMenu(container.getDataProvider(), container.getPassportGeneratorService(), container.getSyncService());
     }
@@ -61,8 +60,7 @@ public class Main {
                                     ImageSyncService syncService) {
         log.info("Загрузка данных для массовой генерации...");
         List<FieldPassport> all = provider.getPassportsData();
-        syncService.prepareNoteImages(all);
-        syncService.prepareSatelliteImages(all);
+        syncService.prepareAll(all);
         service.generateAll(all);
     }
 
@@ -80,8 +78,7 @@ public class Main {
             System.out.println("❌ Поле '" + target + "' не найдено в базе данных.");
         } else {
             log.info("Найдено сезонов для поля {}: {}. Начинаю генерацию...", target, selected.size());
-            syncService.prepareNoteImages(selected);
-            syncService.prepareSatelliteImages(selected);
+            syncService.prepareAll(selected);
             service.generateAll(selected); // Генерируем PDF для каждого найденного сезона
             System.out.println("✅ Паспорта для поля " + target + " успешно созданы.");
         }

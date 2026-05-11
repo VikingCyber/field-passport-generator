@@ -5,4 +5,9 @@ public interface ImageSource {
     SourceType getType();
     byte[] getImageBytes();
     void setImageBytes(byte[] bytes);
+
+    default boolean hasImage() {
+        byte[] data = getImageBytes();
+        return data != null && data.length > 0;
+    }
 }

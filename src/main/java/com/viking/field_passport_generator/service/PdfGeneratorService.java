@@ -1,6 +1,8 @@
 package com.viking.field_passport_generator.service;
 
 import com.viking.field_passport_generator.model.*;
+import com.viking.field_passport_generator.model.note.NoteImage;
+import com.viking.field_passport_generator.model.note.NoteTableRow;
 import com.viking.field_passport_generator.util.NoteImageComparators;
 import com.viking.field_passport_generator.util.PdfUIHelper;
 import org.openpdf.text.Document;
@@ -141,6 +143,11 @@ public class PdfGeneratorService implements PassportGeneratorService {
 
         document.newPage();
         document.add(PdfUIHelper.createPhotoGrid(writer, photoMap));
+
+        // --- Section 4. Spectral indices ---
+        document.newPage();
+        ChartImage chartImage = passport.indexChart();
+        PdfUIHelper.addChartImage(document, chartImage);
 
         // --- Section 6. Satellite Images ---
         document.newPage();

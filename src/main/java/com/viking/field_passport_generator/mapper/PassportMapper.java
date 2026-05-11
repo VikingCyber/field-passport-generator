@@ -2,11 +2,11 @@ package com.viking.field_passport_generator.mapper;
 
 import com.viking.field_passport_generator.data.dto.RawFieldData;
 import com.viking.field_passport_generator.model.*;
+import com.viking.field_passport_generator.model.note.NoteSection;
 import com.viking.field_passport_generator.util.YearUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -17,7 +17,8 @@ public class PassportMapper {
      * Превращает сырые данные поля и подготовленный список операций в доменный объект паспорта.
      */
     public static FieldPassport mapToDomain(RawFieldData raw, List<OperationTableRow> operations,
-            NoteSection noteSection, List<TechJournalTableRow> techJournal, List<SatelliteImage> satelliteImages) {
+                                            NoteSection noteSection, List<SatelliteImage> satelliteImages,
+                                            ChartImage chartImage, List<TechJournalTableRow> techJournal) {
         String rawCrop = raw.crop();
 
         int year = YearUtils.extractYear(rawCrop);
@@ -42,9 +43,9 @@ public class PassportMapper {
                 info,
                 operations != null ? operations : Collections.emptyList(),
                 noteSection != null ? noteSection : new NoteSection(Collections.emptyList(), Collections.emptyList()),
-                techJournal != null ? techJournal : Collections.emptyList(),
-                satelliteImages != null ? satelliteImages : Collections.emptyList()
-
+                chartImage,
+                satelliteImages != null ? satelliteImages : Collections.emptyList(),
+                techJournal != null ? techJournal : Collections.emptyList()
         );
     }
 }

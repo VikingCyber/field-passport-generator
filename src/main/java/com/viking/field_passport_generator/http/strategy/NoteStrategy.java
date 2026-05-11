@@ -1,20 +1,19 @@
 package com.viking.field_passport_generator.http.strategy;
 
+import com.viking.field_passport_generator.config.NoteConfig;
 import com.viking.field_passport_generator.http.LoadResult;
 import com.viking.field_passport_generator.http.NoteImageLoader;
 import com.viking.field_passport_generator.model.ImageSource;
-import com.viking.field_passport_generator.model.NoteImage;
+import com.viking.field_passport_generator.model.note.NoteImage;
 import com.viking.field_passport_generator.model.SourceType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -23,10 +22,19 @@ public class NoteStrategy implements ImageProviderStrategy {
     private static final Logger log = LoggerFactory.getLogger(NoteStrategy.class);
     private final NoteImageLoader loader;
     private final Path cachePath;
+    private final String subDir;
+    private final String defaultExt;
 
-    public NoteStrategy(NoteImageLoader loader, Path cachePath) {
+    public NoteStrategy(NoteImageLoader loader, NoteConfig config) {
         this.loader = loader;
-        this.cachePath = cachePath;
+        this.cachePath = config.cachePath();
+        this.subDir = config.dir();
+        this.defaultExt = config.extension();
+    }
+
+    @Override
+    public Logger getLogger() {
+        return log;
     }
 
     @Override
@@ -36,7 +44,6 @@ public class NoteStrategy implements ImageProviderStrategy {
 
         Set<String> existingIds = getExistingCacheIds();
         List<String> toFetch = ids.stream()
-                .map(String::valueOf)
                 .filter(id -> !existingIds.contains(id))
                 .toList();
 
@@ -60,12 +67,8 @@ public class NoteStrategy implements ImageProviderStrategy {
 
             // 3. Сохраняем то, что скачалось
             result.images().forEach((id, resource) -> {
-                try {
-                    Path target = cachePath.resolve(id + "." + resource.extension());
-                    Files.write(target, resource.data());
-                } catch (IOException e) {
-                    log.error("Error recording file on disk {}: {}", id, e.getMessage());
-                }
+                Path target = resolvePath(cachePath, id +".*", id + "." + defaultExt, subDir);
+                writeToDisk(target, resource.data());
             });
 
             totalLinksFound += result.linksFound();
@@ -82,77 +85,18 @@ public class NoteStrategy implements ImageProviderStrategy {
 
         String id = note.getId();
 
-        Path localPath = findOnDisk(id);
-
-        byte[] data = null;
-        if (localPath != null && Files.exists(localPath)) {
-            data = readFromDisk(localPath);
-        } else {
-            var result = loader.load(List.of(id));
-
-            if (result.images().containsKey(id)) {
-                var resource = result.images().get(id);
-                data = resource.data();
-
-                Path targetPath = cachePath.resolve(id + "." + resource.extension());
-                saveToDisk(targetPath, data);
-            }
-        }
-
-        if (data != null) {
-            note.setImageBytes(data);
-        }
-    }
-
-    @Override
-    public Path resolvePath(Path root, String id, Map<String, String> params) {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(root, id + ".*")) {
-            Iterator<Path> iterator = stream.iterator();
-            if (iterator.hasNext()) {
-                return iterator.next();
-            }
-        } catch (IOException e) {
-            log.error("Error searching for note image {}: {}", id, e.getMessage());
-        }
-
-        // Если файла нет, возвращаем путь по умолчанию для сохранения
-        String ext = params.getOrDefault("extension", "png");
-        return root.resolve(id + "." + ext);
+        Path localPath = resolvePath(cachePath, id + ".*", id + "." + defaultExt, subDir);
+        readFromDisk(localPath).or(() -> Optional.ofNullable(loader.load(List.of(id)).images().get(id))
+                    .map(resource -> {
+                        byte[] data = resource.data();
+                        writeToDisk(localPath, data);
+                        return data;
+                    })).ifPresent(note::setImageBytes);
     }
 
     @Override
     public SourceType getType() {
         return SourceType.NOTE;
-    }
-
-    private Path findOnDisk(String id) {
-        if (!Files.isDirectory(cachePath)) {
-            return null;
-        }
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(cachePath, id + ".*")) {
-            Iterator<Path> iterator = stream.iterator();
-            return iterator.hasNext() ? iterator.next() : null;
-        } catch (IOException e) {
-            return null;
-        }
-    }
-
-    private byte[] readFromDisk(Path path) {
-        try {
-            return Files.readAllBytes(path);
-        } catch (IOException e) {
-            log.error("Error reading note from disk {}: {}", path, e.getMessage());
-            return null;
-        }
-    }
-
-    private void saveToDisk(Path path, byte[] data) {
-        try {
-            Files.createDirectories(path.getParent());
-            Files.write(path, data);
-        } catch (IOException e) {
-            log.error("Error saving note to disk {}: {}", path, e.getMessage());
-        }
     }
 
     private void printCacheReport(int totalMissing, int totalLinksFound, int totalDownloaded, int totalFailed) {
@@ -169,8 +113,9 @@ public class NoteStrategy implements ImageProviderStrategy {
     }
 
     private Set<String> getExistingCacheIds() {
-        if (!Files.exists(cachePath)) return Set.of();
-        try (Stream<Path> stream = Files.list(cachePath)) {
+        Path notesPath = cachePath.resolve(subDir);
+        if (!Files.exists(notesPath)) return Set.of();
+        try (Stream<Path> stream = Files.list(notesPath)) {
             return stream
                     .map(path -> path.getFileName().toString())
                     .map(name -> name.contains(".") ? name.substring(0, name.lastIndexOf('.')) : name)

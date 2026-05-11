@@ -5,6 +5,7 @@ import com.viking.field_passport_generator.data.dictionary.TmcDictionary;
 import com.viking.field_passport_generator.data.dto.*;
 import com.viking.field_passport_generator.mapper.*;
 import com.viking.field_passport_generator.model.*;
+import com.viking.field_passport_generator.model.note.NoteSection;
 import com.viking.field_passport_generator.util.YearUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,12 +82,21 @@ public class FieldDataAggregator {
         List<RawNote> fieldNotes = notesByFieldId.getOrDefault(fieldId, Collections.emptyList());
         List<OperationTableRow> operationTableRows = operationMapper.mapToTableRow(cleanOps, tmcDictionary);
         NoteSection noteSection = noteMapper.map(fieldNotes, String.valueOf(passportYear));
-        List<TechJournalTableRow> techJournalTableRows = techJournalMapper.mapToTableRow(cleanOps, machineDictionary);
         List<SatelliteImage> satelliteImages = satelliteMapper.map(fieldId, operationTableRows);
-
         satelliteImages.sort(Comparator.comparing(SatelliteImage::getPlanDate));
-        return PassportMapper.mapToDomain(rawField, operationTableRows, noteSection, techJournalTableRows,
-                satelliteImages);
+        List<TechJournalTableRow> techJournalTableRows = techJournalMapper.mapToTableRow(cleanOps, machineDictionary);
+
+        String chartTitle = String.format("%s - %s %d", rawField.field(), rawField.department(), passportYear);
+        ChartImage indexChart = new ChartImage(String.valueOf(fieldId), passportYear, chartTitle, new ArrayList<>());
+
+        return PassportMapper.mapToDomain(
+                rawField,
+                operationTableRows,
+                noteSection,
+                satelliteImages,
+                indexChart,
+                techJournalTableRows
+                );
     }
 
     private List<RawOperationData> filterOperationsByYear(List<RawOperationData> ops, int targetYear) {

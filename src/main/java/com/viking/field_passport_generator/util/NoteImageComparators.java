@@ -1,6 +1,6 @@
 package com.viking.field_passport_generator.util;
 
-import com.viking.field_passport_generator.model.NoteImage;
+import com.viking.field_passport_generator.model.note.NoteImage;
 
 import java.util.Comparator;
 

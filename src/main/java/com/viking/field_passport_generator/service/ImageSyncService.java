@@ -3,6 +3,7 @@ package com.viking.field_passport_generator.service;
 import com.viking.field_passport_generator.data.dto.RawApiResponse;
 import com.viking.field_passport_generator.data.dto.RawFieldData;
 import com.viking.field_passport_generator.data.dto.RawNotesResponse;
+import com.viking.field_passport_generator.model.ChartImage;
 import com.viking.field_passport_generator.model.FieldPassport;
 import com.viking.field_passport_generator.model.SourceType;
 import com.viking.field_passport_generator.util.JsonDataParser;
@@ -11,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -24,8 +26,19 @@ public class ImageSyncService {
         this.parser = parser;
     }
 
-    public void warmUpNotes(String notesJsonPath) {
-        log.info("Запуск синхронизации изображений для заметок из: {}", notesJsonPath);
+    public void warmUpAll(String notesDataPath, String satelliteDataPath) {
+        warmUpNotes(notesDataPath);
+        warmUpSatelliteMetadata(satelliteDataPath);
+    }
+
+    public void prepareAll(List<FieldPassport> passports) {
+        prepareNoteImages(passports);
+        prepareSatelliteImages(passports);
+        prepareIndexCharts(passports);
+    }
+
+    private void warmUpNotes(String notesJsonPath) {
+        log.info("Starting notes images data synchronization from: {}", notesJsonPath);
         InputStream is = getClass().getClassLoader().getResourceAsStream(notesJsonPath);
         RawNotesResponse notes = parser.parse(is, RawNotesResponse.class);
 
@@ -36,7 +49,7 @@ public class ImageSyncService {
         cacheService.sync(allIds, SourceType.NOTE);
     }
 
-    public void warmUpSatelliteMetadata(String fieldsJsonPath) {
+    private void warmUpSatelliteMetadata(String fieldsJsonPath) {
         log.info("Starting satellite data synchronization from {}", fieldsJsonPath);
 
         // 1. Читаем файл через classloader (как и заметки)
@@ -60,13 +73,23 @@ public class ImageSyncService {
         cacheService.sync(allIds, SourceType.SATELLITE);
     }
 
-    public void prepareSatelliteImages(List<FieldPassport> passports) {
+    private void prepareSatelliteImages(List<FieldPassport> passports) {
         log.info("Подготовка спутниковых снимков для {} паспортов", passports.size());
         passports.forEach(p -> cacheService.fillImages(p.satelliteImages()));
     }
 
-    public void prepareNoteImages(List<FieldPassport> passports) {
+    private void prepareNoteImages(List<FieldPassport> passports) {
         log.info("Подготовка фотографий заметок для {} сезонов", passports.size());
         passports.forEach(p -> cacheService.fillImages(p.notesSection().images()));
+    }
+
+    private void prepareIndexCharts(List<FieldPassport> passports) {
+        log.info("Подготовка изображений графиков для {} паспортов", passports.size());
+
+        List<ChartImage> charts = passports.stream()
+                .map(FieldPassport::indexChart)
+                .filter(Objects::nonNull)
+                .toList();
+        cacheService.fillImages(charts);
     }
 }

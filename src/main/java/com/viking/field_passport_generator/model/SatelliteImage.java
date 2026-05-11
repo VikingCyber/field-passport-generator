@@ -39,7 +39,4 @@ public class SatelliteImage implements ImageSource {
     public SpectralIndex getIndex() { return index; }
     public void setIndex(SpectralIndex index) { this.index = index; }
     public String getDescription() { return description; }
-    public boolean hasImage() {
-        return imageBytes != null && imageBytes.length > 0;
-    }
 }
