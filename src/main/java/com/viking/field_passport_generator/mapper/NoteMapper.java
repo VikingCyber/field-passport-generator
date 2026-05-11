@@ -1,9 +1,9 @@
 package com.viking.field_passport_generator.mapper;
 
 import com.viking.field_passport_generator.data.dto.RawNote;
-import com.viking.field_passport_generator.model.NoteImage;
-import com.viking.field_passport_generator.model.NoteSection;
-import com.viking.field_passport_generator.model.NoteTableRow;
+import com.viking.field_passport_generator.model.note.NoteImage;
+import com.viking.field_passport_generator.model.note.NoteSection;
+import com.viking.field_passport_generator.model.note.NoteTableRow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

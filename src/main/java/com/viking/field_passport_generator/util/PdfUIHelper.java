@@ -1,6 +1,7 @@
 package com.viking.field_passport_generator.util;
 
 import com.viking.field_passport_generator.model.*;
+import com.viking.field_passport_generator.model.note.NoteTableRow;
 import org.openpdf.text.*;
 import org.openpdf.text.Font;
 import org.openpdf.text.Image;
@@ -10,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.Duration;
@@ -404,6 +406,31 @@ public final class PdfUIHelper {
             table.addCell(createStyledCell(new Phrase(row.period(), FONT_TABLE_BODY), null, Element.ALIGN_LEFT));
         }
         return table;
+    }
+
+    public static void addChartImage(Document document, ChartImage chartImage) {
+        PdfPTable table = new PdfPTable(1);
+        table.setWidthPercentage(100f);
+        table.setSpacingBefore(20f);
+        table.setKeepTogether(true);
+
+        PdfPCell cell = new PdfPCell();
+        cell.setBorder(Rectangle.NO_BORDER);
+        cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+
+        Paragraph title = createSectionTitle("Раздел 4. Индексы");
+        title.setAlignment(Element.ALIGN_LEFT);
+        cell.addElement(title);
+        try {
+            Image img = Image.getInstance(chartImage.getImageBytes());
+            img.setAlignment(Image.ALIGN_CENTER);
+            cell.addElement(img);
+        } catch (Exception e) {
+            log.error("Error rendering chartImage: {}", e.getMessage());
+            cell.addElement(new Phrase("Ошибка отрисовки графика"));
+        }
+        table.addCell(cell);
+        document.add(table);
     }
 
     /**

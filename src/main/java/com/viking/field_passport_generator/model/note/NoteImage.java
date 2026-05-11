@@ -1,5 +1,8 @@
-package com.viking.field_passport_generator.model;
+package com.viking.field_passport_generator.model.note;
 
+
+import com.viking.field_passport_generator.model.ImageSource;
+import com.viking.field_passport_generator.model.SourceType;
 
 public class NoteImage implements ImageSource {
     private final String id;
@@ -29,10 +32,6 @@ public class NoteImage implements ImageSource {
     @Override
     public void setImageBytes(byte[] bytes) {
         this.imageBytes = bytes;
-    }
-
-    public boolean hasImage() {
-        return imageBytes != null && imageBytes.length > 0;
     }
 
     public String getComplexIndex() {

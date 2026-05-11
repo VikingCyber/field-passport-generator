@@ -7,11 +7,10 @@ import com.viking.field_passport_generator.http.SatelliteImageLoader;
 import com.viking.field_passport_generator.model.ImageSource;
 import com.viking.field_passport_generator.model.SatelliteImage;
 import com.viking.field_passport_generator.model.SourceType;
+import com.viking.field_passport_generator.util.ImageUtils;
 import com.viking.field_passport_generator.util.JsonDataParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -33,14 +32,29 @@ public class SatelliteStrategy implements ImageProviderStrategy {
     private final SatelliteImageLoader loader;
     private final JsonDataParser jsonParser;
     private final Path cachePath;
-    private final SatelliteConfig config;
+    private final String fromDate;
+    private final String toDate;
+    private final int scanWindowDays;
+    private final double maxCloudThreshold;
+    private final double cloudWeightFactor;
+    private final String defaultExt;
 
-    public SatelliteStrategy(SatelliteImageLoader loader, JsonDataParser jsonParser, Path cachePath,
+    public SatelliteStrategy(SatelliteImageLoader loader, JsonDataParser jsonParser,
                              SatelliteConfig config) {
         this.loader = loader;
         this.jsonParser = jsonParser;
-        this.cachePath = cachePath;
-        this.config = config;
+        this.cachePath = config.cachePath();
+        this.fromDate = config.fromDate();
+        this.toDate = config.toDate();
+        this.scanWindowDays = config.scanWindowDays();
+        this.maxCloudThreshold = config.maxCloudThreshold();
+        this.cloudWeightFactor = config.cloudWeightFactor();
+        this.defaultExt = config.extension();
+    }
+
+    @Override
+    public Logger getLogger() {
+        return log;
     }
 
     /**
@@ -57,62 +71,43 @@ public class SatelliteStrategy implements ImageProviderStrategy {
         collectMetadata(longIds);
     }
 
+    private Optional<SatelliteScan> getBestScanForSat(SatelliteImage sat) {
+        Path historyFile = cachePath.resolve(sat.getId()).resolve("history.json");
+        return Optional.ofNullable(readMetadataFromDisk(historyFile))
+                .map(FieldSpectralResponse::data)
+                .flatMap(scans -> Optional.ofNullable(findBestScan(scans, sat.getPlanDate())));
+    }
+
+    private Optional<byte[]> downloadAndCache(SatelliteScan best, String id, String indexName, String filePrefix) {
+        String url = best.getUrl(indexName);
+        return Optional.ofNullable(loader.downloadBytes(url))
+                .map(data -> {
+                   String realExt = ImageUtils.determineExtension(url);
+                   Path targetPath = resolvePath(cachePath, filePrefix + ".",
+                           filePrefix + "." + realExt, id, indexName);
+                   writeToDisk(targetPath, data);
+                   return data;
+                });
+    }
+
     @Override
     public void process(ImageSource source) {
         // 1. Проверка типа (Safe Cast)
         if (!(source instanceof SatelliteImage sat) || sat.hasImage()) return;
 
-        // 2. Поиск лучшего скана в истории (history.json)
-        Path historyFile = cachePath.resolve(sat.getId()).resolve("history.json");
-        FieldSpectralResponse response = readMetadataFromDisk(historyFile);
-
-        if (response == null || response.data() == null) {
-            log.warn("Нет данных мониторинга для поля {}", sat.getId());
-            return;
-        }
-
-        SatelliteScan best = findBestScan(response.data(), sat.getPlanDate());
-
-        if (best != null) {
-            // Параметры только для формирования пути файла
-            Map<String, String> pathParams = Map.of(
-                    "index", sat.getIndex().getIndexName(),
-                    "date", best.date()
-            );
-            Path localPath = resolvePath(cachePath, sat.getId(), pathParams);
-
-            // 3. Логика кэша: Сначала диск, потом API
-            byte[] data;
-            if (Files.exists(localPath)) {
-                data = readFromDisk(localPath);
-            } else {
-                data = loader.downloadBytes(best.getUrl(sat.getIndex().getIndexName()));
-                if (data != null) saveToDisk(localPath, data);
-            }
-
-            // 4. Обогащение объекта
-            if (data != null) {
-                sat.setImageBytes(data);
-                sat.setActualDate(LocalDate.parse(best.date())); // Специфика спутника успешно сохранена
-            }
-        }
-    }
-
-    /**
-     * Resolves path following the pattern root/fieldId/indexName/fieldId_date_index.png
-     *
-     * @param root the root directory of the cache.
-     * @param id the identifier of the entity
-     * @param params implementation-specific parameters used to construct the file path.
-     * @return resolved path to the File
-     */
-    @Override
-    public Path resolvePath(Path root, String id, Map<String, String> params) {
-        String index = params.get("index").toLowerCase();
-        String date = params.get("date");
-        String fileName = String.format("%s_%s_%s.png", id, date, index);
-
-        return root.resolve(id).resolve(index).resolve(fileName);
+        getBestScanForSat(sat).ifPresent(best -> {
+            String indexName = sat.getIndex().getIndexName();
+            String filePrefix = sat.getId() + "_" + best.date() + "_" + indexName;
+            Path localPath = resolvePath(cachePath, filePrefix + ".*", filePrefix + "." + defaultExt,
+                    sat.getId(), indexName);
+            readFromDisk(localPath)
+                    .or(() -> downloadAndCache(best, sat.getId(), indexName, filePrefix))
+                    .ifPresent(data -> {
+                        sat.setImageBytes(data);
+                        sat.setActualDate(LocalDate.parse(best.date()));
+                        log.debug("Processed: {} for date {}", indexName, best.date());
+                    });
+        });
     }
 
     @Override
@@ -156,8 +151,8 @@ public class SatelliteStrategy implements ImageProviderStrategy {
                         acquired = true;
                         Map<Long, FieldSpectralResponse> remote = loader.fetchSpectralData(
                                 batch,
-                                config.fromDate(),
-                                config.toDate()
+                                fromDate,
+                                toDate
                         );
                         Map<Long, FieldSpectralResponse> toSave = new HashMap<>();
                         for (Long id : batch) {
@@ -201,11 +196,11 @@ public class SatelliteStrategy implements ImageProviderStrategy {
             LocalDate scanDate = LocalDate.parse(scan.date());
             long daysDiff = ChronoUnit.DAYS.between(targetDate, scanDate);
 
-            if (daysDiff >= 0 && daysDiff <= config.scanWindowDays()) {
-                if (scan.cloud() > config.maxCloudThreshold()) continue;
+            if (daysDiff >= 0 && daysDiff <= scanWindowDays) {
+                if (scan.cloud() > maxCloudThreshold) continue;
 
                 // Вес: дни + облачность с коэффициентом "важности"
-                double currentWeight = daysDiff + (scan.cloud() * config.cloudWeightFactor());
+                double currentWeight = daysDiff + (scan.cloud() * cloudWeightFactor);
 
                 if (currentWeight < minWeight) {
                     minWeight = currentWeight;
@@ -233,26 +228,7 @@ public class SatelliteStrategy implements ImageProviderStrategy {
         return jsonParser.parse(historyFile, FieldSpectralResponse.class);
     }
 
-    private byte[] readFromDisk(Path path) {
-        try {
-            return Files.readAllBytes(path);
-        } catch (IOException e) {
-            log.error("Ошибка чтения изображения из кэша {}: {}", path, e.getMessage());
-            return null;
-        }
-    }
 
-    private void saveToDisk(Path path, byte[] data) {
-        if (data == null) return;
-        try {
-            // Создаем все родительские директории (например, root/fieldId/ndvi/)
-            Files.createDirectories(path.getParent());
-            Files.write(path, data);
-            log.debug("Спутниковый снимок сохранен в кэш: {}", path.getFileName());
-        } catch (IOException e) {
-            log.error("Ошибка записи изображения на диск {}: {}", path, e.getMessage());
-        }
-    }
 
     /*
      * Mass Generation & Pre-caching
