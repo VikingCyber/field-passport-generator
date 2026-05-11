@@ -98,8 +98,8 @@ public class AppContainer {
     private ChartStrategy createChartStrategy(AppConfig config, JsonDataParser jsonParser) {
         ChartConfig chartConfig = config.getChartConfig();
         ChartGenerator chartGenerator = new XChartGeneratorImpl(chartConfig);
-        double cloudThreshold = config.getDouble("app.satellite.cloud-threshold", 0.8);
-        ZoneId timezone = ZoneId.of(config.getString("app.timezone", "Asia/Krasnoyarsk"));
+        double cloudThreshold = chartConfig.cloudThreshold();
+        ZoneId timezone = chartConfig.timezone();
         ChartMapper chartMapper = new ChartMapper(cloudThreshold);
         return new ChartStrategy(chartGenerator, chartConfig, jsonParser, chartMapper, timezone);
     }

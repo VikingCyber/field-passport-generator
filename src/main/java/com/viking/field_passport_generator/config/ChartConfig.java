@@ -11,6 +11,7 @@ public record ChartConfig(
         int height,
         Path cachePath,
         String fontPath,
-        ZoneId timezone
+        ZoneId timezone,
+        Double cloudThreshold
 ) {
 }

@@ -58,7 +58,6 @@ public class ChartStrategy implements ImageProviderStrategy {
             String id = chart.getId();
             String fileName = filePrefix + id + "_" + chart.getYear();
             Path localPath = resolvePath(cachePath,fileName + ".*", fileName + "." + defaultExt, id, subDir);
-            System.out.println(">>> localPath = " + localPath.toAbsolutePath());
             readFromDisk(localPath).or(() -> {
                 log.info("Cache is empty, preparing data for chart: {}. Path: {}", chart.getTitle(), localPath);
 
@@ -83,7 +82,7 @@ public class ChartStrategy implements ImageProviderStrategy {
                         });
             }).ifPresent(chart::setImageBytes);
         } catch (Exception e) {
-            log.error("Ошибка та самая: ", e);
+            log.error("Failed to process chart : {}", e.getMessage());
         }
 
     }

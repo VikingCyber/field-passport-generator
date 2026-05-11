@@ -77,7 +77,6 @@ public class XChartGeneratorImpl implements ChartGenerator {
         styler.setPlotGridVerticalLinesVisible(false);
         styler.setPlotGridHorizontalLinesVisible(true);
         styler.setPlotGridLinesStroke(new BasicStroke(1.0f));
-        styler.setPlotGridLinesColor(new Color(230, 230, 230));
         styler.setPlotGridLinesColor(new Color(240, 240, 240));
         styler.setLegendPosition(Styler.LegendPosition.InsideNE);
         styler.setLegendLayout(Styler.LegendLayout.Vertical);

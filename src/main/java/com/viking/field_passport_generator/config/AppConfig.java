@@ -189,7 +189,8 @@ public class AppConfig {
                 getInt("app.cache.charts.height", 400),
                 getPath("app.cache.path", "cache/images"),
                 getString("app.cache.charts.font-path", "fonts/NotoSans-Regular.ttf"),
-                getTimezone("app.timezone", ZoneId.of("Asia/Krasnoyarsk"))
+                getTimezone("app.timezone", ZoneId.of("Asia/Krasnoyarsk")),
+                getDouble("agro.satellite.cloud-threshold", 0.8)
         );
     }
 }
