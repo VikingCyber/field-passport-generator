@@ -12,7 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
-import java.time.ZoneId;
 import java.util.Optional;
 import java.util.Set;
 
@@ -26,10 +25,9 @@ public class ChartStrategy implements ImageProviderStrategy {
     private final String subDir;
     private final String defaultExt;
     private final String filePrefix;
-    private final ZoneId timezone;
 
     public ChartStrategy(ChartGenerator chartGenerator, ChartConfig config, JsonDataParser jsonParser,
-                         ChartMapper chartMapper, ZoneId timezone) {
+                         ChartMapper chartMapper) {
         this.chartGenerator = chartGenerator;
         this.cachePath = config.cachePath();
         this.subDir = config.dir();
@@ -37,7 +35,6 @@ public class ChartStrategy implements ImageProviderStrategy {
         this.filePrefix = config.filePrefix();
         this.jsonParser = jsonParser;
         this.chartMapper = chartMapper;
-        this.timezone = timezone;
     }
 
     @Override

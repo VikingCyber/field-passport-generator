@@ -3,6 +3,7 @@ package com.viking.field_passport_generator.model;
 import com.viking.field_passport_generator.model.note.NoteSection;
 
 import java.util.List;
+import java.util.Objects;
 
 public record FieldPassport(
     GeneralInfo generalInfo,
@@ -11,4 +12,20 @@ public record FieldPassport(
     ChartImage indexChart,
     List<SatelliteImage> satelliteImages,
     List<TechJournalTableRow> resources
-) {}
+) {
+    public void clearImageData() {
+        if (this.satelliteImages != null) {
+            this.satelliteImages.stream()
+                    .filter(Objects::nonNull)
+                    .forEach(img -> img.setImageBytes(null));
+        }
+        if (this.indexChart != null) {
+            this.indexChart.setImageBytes(null);
+        }
+        if (this.notesSection != null && this.notesSection.images() != null) {
+            this.notesSection.images().stream()
+                    .filter(Objects::nonNull)
+                    .forEach(img -> img.setImageBytes(null));
+        }
+    }
+}

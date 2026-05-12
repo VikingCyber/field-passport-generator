@@ -13,6 +13,7 @@ import com.viking.field_passport_generator.http.strategy.SatelliteStrategy;
 import com.viking.field_passport_generator.mapper.*;
 import com.viking.field_passport_generator.model.SpectralIndex;
 import com.viking.field_passport_generator.service.*;
+import com.viking.field_passport_generator.service.orchestration.PassportOrchestrator;
 import com.viking.field_passport_generator.util.JsonDataParser;
 
 import java.nio.file.Path;
@@ -23,8 +24,8 @@ import java.util.Set;
 
 public class AppContainer {
     private final DataProvider dataProvider;
-    private final PassportGeneratorService passportGeneratorService;
     private final ImageSyncService syncService;
+    private final PassportOrchestrator orchestrator;
 
     public AppContainer(AppConfig config) {
         // ===== 1. Utilities =====
@@ -49,7 +50,16 @@ public class AppContainer {
         this.dataProvider = new FileDataProvider(jsonParser, aggregator);
 
         // ===== 6. PDF Generation =====
-        this.passportGeneratorService = createPdfService(config);
+        PassportGeneratorService passportGeneratorService = createPdfService(config);
+
+        // ===== 7. Orchestration =====
+        int maxConcurrent = config.getInt("app.max-concurrent-tasks", 10);
+        this.orchestrator = new PassportOrchestrator(
+                this.syncService,
+                passportGeneratorService,
+                maxConcurrent
+        );
+
     }
 
     // ========== Factory Methods ==========
@@ -99,9 +109,8 @@ public class AppContainer {
         ChartConfig chartConfig = config.getChartConfig();
         ChartGenerator chartGenerator = new XChartGeneratorImpl(chartConfig);
         double cloudThreshold = chartConfig.cloudThreshold();
-        ZoneId timezone = chartConfig.timezone();
         ChartMapper chartMapper = new ChartMapper(cloudThreshold);
-        return new ChartStrategy(chartGenerator, chartConfig, jsonParser, chartMapper, timezone);
+        return new ChartStrategy(chartGenerator, chartConfig, jsonParser, chartMapper);
     }
 
     private FieldDataAggregator createAggregator(AppConfig config) {
@@ -127,6 +136,6 @@ public class AppContainer {
 
     // ========== Getters ==========
     public DataProvider getDataProvider() { return dataProvider; }
-    public PassportGeneratorService getPassportGeneratorService() { return passportGeneratorService; }
     public ImageSyncService getSyncService() { return syncService; }
+    public PassportOrchestrator getOrchestrator() { return orchestrator; }
 }
