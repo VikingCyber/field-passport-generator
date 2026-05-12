@@ -2,11 +2,9 @@ package com.viking.field_passport_generator.data.dictionary;
 
 import com.viking.field_passport_generator.model.MachineResource;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.viking.field_passport_generator.util.StringUtils.clean;
 

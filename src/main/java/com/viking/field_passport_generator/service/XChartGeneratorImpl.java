@@ -39,14 +39,21 @@ public class XChartGeneratorImpl implements ChartGenerator {
 
     private final int width;
     private final int height;
-    private final Font customFont;
     private final ZoneId timezone;
+    private final Font titleFont;
+    private final Font tickFont;
+    private final Font legendFont;
+    private final Font axisTitleFont;
 
     public XChartGeneratorImpl(ChartConfig config) {
         this.width = config.width();
         this.height = config.height();
-        this.customFont = loadFontFromResource(config.fontPath());
+        Font baseFont = loadFontFromResource(config.fontPath());
         this.timezone = config.timezone();
+        this.titleFont = baseFont.deriveFont(Font.PLAIN, 22f);
+        this.tickFont = baseFont.deriveFont(Font.PLAIN, 14f);
+        this.legendFont = baseFont.deriveFont(Font.PLAIN, 12f);
+        this.axisTitleFont = baseFont.deriveFont(Font.PLAIN, 14f);
     }
 
     @Override
@@ -65,11 +72,11 @@ public class XChartGeneratorImpl implements ChartGenerator {
         styler.setYAxisTickMarkSpacingHint(50);
         styler.setPlotContentSize(0.98);
 
-        styler.setChartTitleFont(customFont.deriveFont(Font.PLAIN, 22f));
+        styler.setChartTitleFont(titleFont);
         styler.setChartTitlePadding(10);
-        styler.setAxisTickLabelsFont(customFont.deriveFont(Font.PLAIN, 14f));
-        styler.setLegendFont(customFont.deriveFont(Font.PLAIN, 12f));
-        styler.setAxisTitleFont(customFont.deriveFont(Font.PLAIN, 14f));
+        styler.setAxisTickLabelsFont(tickFont);
+        styler.setLegendFont(legendFont);
+        styler.setAxisTitleFont(axisTitleFont);
         styler.setAxisTitlePadding(20);
 
         styler.setChartBackgroundColor(Color.WHITE);
@@ -157,6 +164,5 @@ public class XChartGeneratorImpl implements ChartGenerator {
         series.setLineColor(color);
         series.setLineWidth(2.0f);
         series.setMarker(SeriesMarkers.NONE);
-
     }
 }
