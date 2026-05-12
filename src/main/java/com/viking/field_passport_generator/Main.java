@@ -4,8 +4,7 @@ import com.viking.field_passport_generator.config.AppConfig;
 import com.viking.field_passport_generator.config.AppContainer;
 import com.viking.field_passport_generator.data.provider.DataProvider;
 import com.viking.field_passport_generator.model.FieldPassport;
-import com.viking.field_passport_generator.service.ImageSyncService;
-import com.viking.field_passport_generator.service.PassportGeneratorService;
+import com.viking.field_passport_generator.service.orchestration.PassportOrchestrator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,18 +21,18 @@ public class Main {
         log.info("Application Started.");
         container.getSyncService().warmUpAll("data/notesData.json", "data/fieldData.json");
 
-        runMenu(container.getDataProvider(), container.getPassportGeneratorService(), container.getSyncService());
+        runMenu(container.getDataProvider(), container.getOrchestrator());
     }
 
-    private static void runMenu(DataProvider provider, PassportGeneratorService service, ImageSyncService syncService) {
+    private static void runMenu(DataProvider provider, PassportOrchestrator orchestrator) {
         while (true) {
             printMenu();
             String choice = scanner.nextLine();
 
             try {
                 switch (choice) {
-                    case "1" -> generateAll(provider, service, syncService);
-                    case "2" -> generateOne(provider, service, syncService);
+                    case "1" -> generateAll(provider, orchestrator);
+                    case "2" -> generateOne(provider, orchestrator);
                     case "0" -> {
                         log.info("Завершение работы...");
                         return;
@@ -56,16 +55,13 @@ public class Main {
         System.out.print("\nВыберите опцию: ");
     }
 
-    private static void generateAll(DataProvider provider, PassportGeneratorService service,
-                                    ImageSyncService syncService) {
+    private static void generateAll(DataProvider provider, PassportOrchestrator orchestrator) {
         log.info("Загрузка данных для массовой генерации...");
         List<FieldPassport> all = provider.getPassportsData();
-        syncService.prepareAll(all);
-        service.generateAll(all);
+        orchestrator.processMassGeneration(all);
     }
 
-    private static void generateOne(DataProvider provider, PassportGeneratorService service,
-                                    ImageSyncService syncService) {
+    private static void generateOne(DataProvider provider, PassportOrchestrator orchestrator) {
         System.out.print("Введите точное название поля (например, ТК02-02): ");
         String target = scanner.nextLine().trim();
 
@@ -78,8 +74,7 @@ public class Main {
             System.out.println("❌ Поле '" + target + "' не найдено в базе данных.");
         } else {
             log.info("Найдено сезонов для поля {}: {}. Начинаю генерацию...", target, selected.size());
-            syncService.prepareAll(selected);
-            service.generateAll(selected); // Генерируем PDF для каждого найденного сезона
+            orchestrator.processMassGeneration(selected);
             System.out.println("✅ Паспорта для поля " + target + " успешно созданы.");
         }
     }

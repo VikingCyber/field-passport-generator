@@ -3,7 +3,6 @@ package com.viking.field_passport_generator.service;
 import com.viking.field_passport_generator.data.dto.RawApiResponse;
 import com.viking.field_passport_generator.data.dto.RawFieldData;
 import com.viking.field_passport_generator.data.dto.RawNotesResponse;
-import com.viking.field_passport_generator.model.ChartImage;
 import com.viking.field_passport_generator.model.FieldPassport;
 import com.viking.field_passport_generator.model.SourceType;
 import com.viking.field_passport_generator.util.JsonDataParser;
@@ -12,7 +11,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -31,10 +29,23 @@ public class ImageSyncService {
         warmUpSatelliteMetadata(satelliteDataPath);
     }
 
-    public void prepareAll(List<FieldPassport> passports) {
-        prepareNoteImages(passports);
-        prepareSatelliteImages(passports);
-        prepareIndexCharts(passports);
+    public void prepareSinglePassport(FieldPassport passport) {
+        log.debug("Sync images for field: {}, year: {}",
+                passport.generalInfo().fieldName(),
+                passport.generalInfo().year());
+
+        if (passport.satelliteImages() != null) {
+            cacheService.fillImages(passport.satelliteImages());
+        }
+
+        if (passport.notesSection() != null && passport.notesSection().images() != null) {
+            cacheService.fillImages(passport.notesSection().images());
+        }
+
+        if (passport.indexChart() != null) {
+            cacheService.fillImages(List.of(passport.indexChart()));
+        }
+
     }
 
     private void warmUpNotes(String notesJsonPath) {
@@ -71,25 +82,5 @@ public class ImageSyncService {
 
         // 4. Отправляем в кэш
         cacheService.sync(allIds, SourceType.SATELLITE);
-    }
-
-    private void prepareSatelliteImages(List<FieldPassport> passports) {
-        log.info("Подготовка спутниковых снимков для {} паспортов", passports.size());
-        passports.forEach(p -> cacheService.fillImages(p.satelliteImages()));
-    }
-
-    private void prepareNoteImages(List<FieldPassport> passports) {
-        log.info("Подготовка фотографий заметок для {} сезонов", passports.size());
-        passports.forEach(p -> cacheService.fillImages(p.notesSection().images()));
-    }
-
-    private void prepareIndexCharts(List<FieldPassport> passports) {
-        log.info("Подготовка изображений графиков для {} паспортов", passports.size());
-
-        List<ChartImage> charts = passports.stream()
-                .map(FieldPassport::indexChart)
-                .filter(Objects::nonNull)
-                .toList();
-        cacheService.fillImages(charts);
     }
 }
