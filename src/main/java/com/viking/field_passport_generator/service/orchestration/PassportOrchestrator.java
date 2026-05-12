@@ -25,6 +25,10 @@ public class PassportOrchestrator {
     }
 
     public void processMassGeneration(List<FieldPassport> passports) {
+        if (passports == null || passports.isEmpty()) {
+            log.warn("Список паспортов пуст или null. Генерация пропущена.");
+            return;
+        }
         log.info("Начало массовой генерации. Всего задач: {}", passports.size());
 
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -51,7 +55,7 @@ public class PassportOrchestrator {
             log.error("Поток прерван для поля {}", passport.generalInfo().fieldName());
             Thread.currentThread().interrupt();
         } catch (Exception e) {
-            log.error("Критическая ошибка при обработке поля {}: {}", passport.generalInfo().fieldName(), e.getMessage());
+            log.error("Критическая ошибка при обработке поля {}", passport.generalInfo().fieldName(), e);
         } finally {
             passport.clearImageData();
             if (acquired) {
