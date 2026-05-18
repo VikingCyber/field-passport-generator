@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.viking.field_passport_generator.data.dto.satellite.SatelliteCaptureRule;
-import com.viking.field_passport_generator.model.SpectralIndex;
+import com.viking.field_passport_generator.model.common.SpectralIndex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

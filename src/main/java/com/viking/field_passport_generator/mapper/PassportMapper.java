@@ -2,7 +2,13 @@ package com.viking.field_passport_generator.mapper;
 
 import com.viking.field_passport_generator.data.dto.RawFieldData;
 import com.viking.field_passport_generator.model.*;
-import com.viking.field_passport_generator.model.note.NoteSection;
+import com.viking.field_passport_generator.model.media.ChartImage;
+import com.viking.field_passport_generator.model.media.SatelliteImage;
+import com.viking.field_passport_generator.model.sections.CropRotation;
+import com.viking.field_passport_generator.model.sections.NoteSection;
+import com.viking.field_passport_generator.model.sections.GeneralInfo;
+import com.viking.field_passport_generator.model.tables.OperationTableRow;
+import com.viking.field_passport_generator.model.tables.TechJournalTableRow;
 import com.viking.field_passport_generator.util.YearUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +46,7 @@ public class PassportMapper {
         );
 
         return new FieldPassport(
+                String.valueOf(raw.fieldId()),
                 info,
                 operations != null ? operations : Collections.emptyList(),
                 noteSection != null ? noteSection : new NoteSection(Collections.emptyList(), Collections.emptyList()),

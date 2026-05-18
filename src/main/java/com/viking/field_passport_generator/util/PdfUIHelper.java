@@ -1,7 +1,11 @@
 package com.viking.field_passport_generator.util;
 
-import com.viking.field_passport_generator.model.*;
-import com.viking.field_passport_generator.model.note.NoteTableRow;
+import com.viking.field_passport_generator.model.common.TmcItem;
+import com.viking.field_passport_generator.model.media.ChartImage;
+import com.viking.field_passport_generator.model.media.SatelliteImage;
+import com.viking.field_passport_generator.model.tables.NoteTableRow;
+import com.viking.field_passport_generator.model.tables.OperationTableRow;
+import com.viking.field_passport_generator.model.tables.TechJournalTableRow;
 import org.openpdf.text.*;
 import org.openpdf.text.Font;
 import org.openpdf.text.Image;
@@ -11,7 +15,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
-import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.Duration;

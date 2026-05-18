@@ -1,8 +1,8 @@
 package com.viking.field_passport_generator.service;
 
 import com.viking.field_passport_generator.http.strategy.ImageProviderStrategy;
-import com.viking.field_passport_generator.model.ImageSource;
-import com.viking.field_passport_generator.model.SourceType;
+import com.viking.field_passport_generator.model.media.ImageSource;
+import com.viking.field_passport_generator.model.common.SourceType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

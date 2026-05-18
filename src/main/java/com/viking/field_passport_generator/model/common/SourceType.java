@@ -1,4 +1,4 @@
-package com.viking.field_passport_generator.model;
+package com.viking.field_passport_generator.model.common;
 
 public enum SourceType {
     SATELLITE,

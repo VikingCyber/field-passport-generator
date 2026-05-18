@@ -1,6 +1,6 @@
 package com.viking.field_passport_generator.data.dictionary;
 
-import com.viking.field_passport_generator.model.MachineResource;
+import com.viking.field_passport_generator.model.common.MachineResource;
 
 import java.util.List;
 import java.util.Map;

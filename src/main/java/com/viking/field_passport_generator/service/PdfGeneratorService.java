@@ -1,8 +1,12 @@
 package com.viking.field_passport_generator.service;
 
 import com.viking.field_passport_generator.model.*;
-import com.viking.field_passport_generator.model.note.NoteImage;
-import com.viking.field_passport_generator.model.note.NoteTableRow;
+import com.viking.field_passport_generator.model.media.ChartImage;
+import com.viking.field_passport_generator.model.media.SatelliteImage;
+import com.viking.field_passport_generator.model.media.NoteImage;
+import com.viking.field_passport_generator.model.tables.NoteTableRow;
+import com.viking.field_passport_generator.model.tables.OperationTableRow;
+import com.viking.field_passport_generator.model.tables.TechJournalTableRow;
 import com.viking.field_passport_generator.util.NoteImageComparators;
 import com.viking.field_passport_generator.util.PdfUIHelper;
 import org.openpdf.text.Document;
@@ -36,13 +40,10 @@ public class PdfGeneratorService implements PassportGeneratorService {
 
     @Override
     public void generate(FieldPassport passport) {
-        String fieldName = passport.generalInfo().fieldName();
-        String year = String.valueOf(passport.generalInfo().year());
-        String saveFileName = fieldName.replaceAll("[^a-zA-Zа-яА-Я0-9]", "_") + "_" + year + ".pdf";
-        Path filePath = outputDir.resolve(saveFileName);
+        Path filePath = resolvePassportPath(passport);
 
-        log.info("==> Старт генерации PDF для поля: {} (Файл: {})", fieldName, saveFileName);
-        log.debug("Генерация файла: {} для года {}", saveFileName, passport.generalInfo().year());
+        log.info("==> Старт генерации PDF для поля: {} (Файл: {})", passport.generalInfo().fieldName(), filePath.getFileName());
+        log.debug("Генерация файла: {} для года {}", filePath.getFileName(), passport.generalInfo().year());
 
         checkStorageSafety(outputDir);
 
@@ -66,10 +67,10 @@ public class PdfGeneratorService implements PassportGeneratorService {
             fillDocument(document, passport, writer);
 
         } catch (DocumentException e) {
-            log.error("Ошибка структуры PDF (iText) для {}: {}", fieldName, e.getMessage());
+            log.error("Ошибка структуры PDF (iText) для {}: {}", passport.generalInfo().fieldName(), e.getMessage());
             throw new RuntimeException("Ошибка форматирования PDF", e);
         } catch (IOException e) {
-            log.error("Ошибка ввода-вывода для {}: {}", saveFileName, e.getMessage());
+            log.error("Ошибка ввода-вывода для {}: {}", filePath.getFileName(), e.getMessage());
             throw new RuntimeException("Ошибка файловой системы", e);
         }
         
@@ -212,5 +213,13 @@ public class PdfGeneratorService implements PassportGeneratorService {
             log.info("==> Массовая генерация завершена! Время: {} мс. Успех {}/{}",
                 duration, successCount.get(), total);
         }
+    }
+
+    @Override
+    public Path resolvePassportPath(FieldPassport passport) {
+        String fieldName = passport.generalInfo().fieldName();
+        String year = String.valueOf(passport.generalInfo().year());
+        String saveFileName = fieldName.replaceAll("[^a-zA-Zа-яА-Я0-9]", "_") + "_" + year + ".pdf";
+        return this.outputDir.resolve(saveFileName);
     }
 }

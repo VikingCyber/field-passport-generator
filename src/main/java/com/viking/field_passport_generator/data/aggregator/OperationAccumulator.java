@@ -2,8 +2,8 @@ package com.viking.field_passport_generator.data.aggregator;
 
 import com.viking.field_passport_generator.data.dictionary.TmcDictionary;
 import com.viking.field_passport_generator.data.dto.RawOperationData;
-import com.viking.field_passport_generator.model.OperationTableRow;
-import com.viking.field_passport_generator.model.TmcItem;
+import com.viking.field_passport_generator.model.tables.OperationTableRow;
+import com.viking.field_passport_generator.model.common.TmcItem;
 
 import java.time.Duration;
 import java.time.Instant;

@@ -1,8 +1,7 @@
-package com.viking.field_passport_generator.model.note;
+package com.viking.field_passport_generator.model.media;
 
 
-import com.viking.field_passport_generator.model.ImageSource;
-import com.viking.field_passport_generator.model.SourceType;
+import com.viking.field_passport_generator.model.common.SourceType;
 
 public class NoteImage implements ImageSource {
     private final String id;

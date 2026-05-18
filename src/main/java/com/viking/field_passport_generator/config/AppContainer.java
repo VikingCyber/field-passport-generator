@@ -4,6 +4,8 @@ import com.viking.field_passport_generator.data.aggregator.FieldDataAggregator;
 import com.viking.field_passport_generator.data.dto.satellite.SatelliteCaptureRule;
 import com.viking.field_passport_generator.data.provider.DataProvider;
 import com.viking.field_passport_generator.data.provider.FileDataProvider;
+import com.viking.field_passport_generator.data.provider.InMemoryDataProvider;
+import com.viking.field_passport_generator.data.provider.WebDataProvider;
 import com.viking.field_passport_generator.http.InternalHttpClient;
 import com.viking.field_passport_generator.http.NoteImageLoader;
 import com.viking.field_passport_generator.http.SatelliteImageLoader;
@@ -11,7 +13,7 @@ import com.viking.field_passport_generator.http.strategy.ChartStrategy;
 import com.viking.field_passport_generator.http.strategy.NoteStrategy;
 import com.viking.field_passport_generator.http.strategy.SatelliteStrategy;
 import com.viking.field_passport_generator.mapper.*;
-import com.viking.field_passport_generator.model.SpectralIndex;
+import com.viking.field_passport_generator.model.common.SpectralIndex;
 import com.viking.field_passport_generator.service.*;
 import com.viking.field_passport_generator.service.orchestration.PassportOrchestrator;
 import com.viking.field_passport_generator.util.JsonDataParser;
@@ -26,6 +28,7 @@ public class AppContainer {
     private final DataProvider dataProvider;
     private final ImageSyncService syncService;
     private final PassportOrchestrator orchestrator;
+    private final PassportGeneratorService pdfService;
 
     public AppContainer(AppConfig config) {
         // ===== 1. Utilities =====
@@ -47,16 +50,21 @@ public class AppContainer {
 
         // ===== 5. Data Aggregation =====
         FieldDataAggregator aggregator = createAggregator(config);
-        this.dataProvider = new FileDataProvider(jsonParser, aggregator);
+        String outputDir = config.getString("app.cache.output-dir", "output");
+        String extension = config.getString("app.cache.passport-extension", ".pdf");
+        FileDataProvider fileDataProvider = new FileDataProvider(jsonParser, aggregator);
+        InMemoryDataProvider cacheProvider = new InMemoryDataProvider(outputDir, extension);
+        cacheProvider.refreshFromFiles(fileDataProvider);
+        this.dataProvider = cacheProvider;
 
         // ===== 6. PDF Generation =====
-        PassportGeneratorService passportGeneratorService = createPdfService(config);
+        this.pdfService = createPdfService(config);
 
         // ===== 7. Orchestration =====
         int maxConcurrent = config.getInt("app.max-concurrent-tasks", 10);
         this.orchestrator = new PassportOrchestrator(
                 this.syncService,
-                passportGeneratorService,
+                this.pdfService,
                 maxConcurrent
         );
 
@@ -135,7 +143,11 @@ public class AppContainer {
     }
 
     // ========== Getters ==========
+    public WebDataProvider getWebDataProvider() {
+        return (WebDataProvider) dataProvider;
+    }
     public DataProvider getDataProvider() { return dataProvider; }
     public ImageSyncService getSyncService() { return syncService; }
     public PassportOrchestrator getOrchestrator() { return orchestrator; }
+    public PassportGeneratorService getPdfService() { return pdfService; }
 }

@@ -4,7 +4,7 @@ import com.viking.field_passport_generator.data.dto.RawApiResponse;
 import com.viking.field_passport_generator.data.dto.RawFieldData;
 import com.viking.field_passport_generator.data.dto.RawNotesResponse;
 import com.viking.field_passport_generator.model.FieldPassport;
-import com.viking.field_passport_generator.model.SourceType;
+import com.viking.field_passport_generator.model.common.SourceType;
 import com.viking.field_passport_generator.util.JsonDataParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

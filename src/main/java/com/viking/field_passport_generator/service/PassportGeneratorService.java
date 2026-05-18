@@ -2,6 +2,7 @@ package com.viking.field_passport_generator.service;
 
 import com.viking.field_passport_generator.model.FieldPassport;
 
+import java.nio.file.Path;
 import java.util.List;
 
 /**
@@ -22,4 +23,6 @@ public interface PassportGeneratorService {
      * @param passports коллекция данных для обработки
      */
     void generateAll(List<FieldPassport> passports);
+
+    Path resolvePassportPath(FieldPassport passport);
 }

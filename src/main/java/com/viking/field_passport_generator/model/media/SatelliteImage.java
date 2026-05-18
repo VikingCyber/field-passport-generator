@@ -1,4 +1,7 @@
-package com.viking.field_passport_generator.model;
+package com.viking.field_passport_generator.model.media;
+
+import com.viking.field_passport_generator.model.common.SourceType;
+import com.viking.field_passport_generator.model.common.SpectralIndex;
 
 import java.time.LocalDate;
 

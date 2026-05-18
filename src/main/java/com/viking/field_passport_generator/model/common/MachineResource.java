@@ -1,4 +1,4 @@
-package com.viking.field_passport_generator.model;
+package com.viking.field_passport_generator.model.common;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.viking.field_passport_generator.util.StringUtils;

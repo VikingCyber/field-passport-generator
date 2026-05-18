@@ -5,6 +5,7 @@ import com.viking.field_passport_generator.config.AppContainer;
 import com.viking.field_passport_generator.data.provider.DataProvider;
 import com.viking.field_passport_generator.model.FieldPassport;
 import com.viking.field_passport_generator.service.orchestration.PassportOrchestrator;
+import com.viking.field_passport_generator.web.AppServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,10 +19,23 @@ public class Main {
     public static void main(String[] args) {
         AppConfig appConfig = new AppConfig();
         AppContainer container = new AppContainer(appConfig);
-        log.info("Application Started.");
+
+        log.info("Initializing data cache...");
         container.getSyncService().warmUpAll("data/notesData.json", "data/fieldData.json");
 
-        runMenu(container.getDataProvider(), container.getOrchestrator());
+        boolean useWebMode = true;
+        if (useWebMode) {
+            log.info("Starting in WEB mode on port 8080...");
+            AppServer server = new AppServer(container);
+            server.start(8080);
+            log.info("Application ready and serving traffic.");
+        } else {
+            log.info("Starting in CONSOLE mode...");
+            runMenu(container.getDataProvider(), container.getOrchestrator());
+        }
+
+        log.info("Application Started.");
+
     }
 
     private static void runMenu(DataProvider provider, PassportOrchestrator orchestrator) {

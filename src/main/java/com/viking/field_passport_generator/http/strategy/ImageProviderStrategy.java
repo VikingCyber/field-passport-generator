@@ -1,7 +1,7 @@
 package com.viking.field_passport_generator.http.strategy;
 
-import com.viking.field_passport_generator.model.ImageSource;
-import com.viking.field_passport_generator.model.SourceType;
+import com.viking.field_passport_generator.model.media.ImageSource;
+import com.viking.field_passport_generator.model.common.SourceType;
 
 import java.io.IOException;
 import java.nio.file.DirectoryStream;

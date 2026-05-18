@@ -1,4 +1,6 @@
-package com.viking.field_passport_generator.model;
+package com.viking.field_passport_generator.model.media;
+
+import com.viking.field_passport_generator.model.common.SourceType;
 
 public interface ImageSource {
     String getId();
