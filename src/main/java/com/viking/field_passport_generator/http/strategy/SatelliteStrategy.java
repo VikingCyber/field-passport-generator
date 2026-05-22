@@ -1,6 +1,6 @@
 package com.viking.field_passport_generator.http.strategy;
 
-import com.viking.field_passport_generator.config.SatelliteConfig;
+import com.viking.field_passport_generator.config.SatelliteConfigInternal;
 import com.viking.field_passport_generator.data.dto.satellite.FieldSpectralResponse;
 import com.viking.field_passport_generator.data.dto.satellite.SatelliteScan;
 import com.viking.field_passport_generator.http.SatelliteImageLoader;
@@ -40,7 +40,7 @@ public class SatelliteStrategy implements ImageProviderStrategy {
     private final String defaultExt;
 
     public SatelliteStrategy(SatelliteImageLoader loader, JsonDataParser jsonParser,
-                             SatelliteConfig config) {
+                             SatelliteConfigInternal config) {
         this.loader = loader;
         this.jsonParser = jsonParser;
         this.cachePath = config.cachePath();

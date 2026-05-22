@@ -1,11 +1,8 @@
 package com.viking.field_passport_generator.config;
 
-import com.viking.field_passport_generator.data.dto.satellite.SatelliteCaptureRule;
-
 import java.nio.file.Path;
-import java.util.List;
 
-public record SatelliteConfig(
+public record SatelliteConfigInternal(
         Path cachePath,
         String fromDate,
         String toDate,

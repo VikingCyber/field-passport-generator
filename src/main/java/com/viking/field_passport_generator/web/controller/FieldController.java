@@ -68,6 +68,6 @@ public class FieldController implements EndpointGroup {
             container.getPdfService().generate(targetedPassport);
         }
         ctx.contentType("application/pdf");
-        ctx.result(Files.readAllBytes(filePath));
+        ctx.result(Files.newInputStream(filePath));
     }
 }
