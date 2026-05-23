@@ -1,4 +1,6 @@
-package com.viking.field_passport_generator.model;
+package com.viking.field_passport_generator.model.tables;
+
+import com.viking.field_passport_generator.model.common.TmcItem;
 
 import java.time.Duration;
 import java.time.LocalDateTime;

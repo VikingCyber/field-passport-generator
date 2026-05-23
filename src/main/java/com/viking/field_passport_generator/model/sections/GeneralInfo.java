@@ -1,4 +1,4 @@
-package com.viking.field_passport_generator.model;
+package com.viking.field_passport_generator.model.sections;
 
 public record GeneralInfo(
     String department,

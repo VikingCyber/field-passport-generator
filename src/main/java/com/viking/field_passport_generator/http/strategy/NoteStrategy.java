@@ -3,9 +3,9 @@ package com.viking.field_passport_generator.http.strategy;
 import com.viking.field_passport_generator.config.NoteConfig;
 import com.viking.field_passport_generator.http.LoadResult;
 import com.viking.field_passport_generator.http.NoteImageLoader;
-import com.viking.field_passport_generator.model.ImageSource;
-import com.viking.field_passport_generator.model.note.NoteImage;
-import com.viking.field_passport_generator.model.SourceType;
+import com.viking.field_passport_generator.model.media.ImageSource;
+import com.viking.field_passport_generator.model.media.NoteImage;
+import com.viking.field_passport_generator.model.common.SourceType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

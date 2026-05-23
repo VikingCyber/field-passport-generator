@@ -5,6 +5,7 @@ import java.util.regex.Pattern;
 
 public class YearUtils {
     private static final Pattern YEAR_PATTERN = Pattern.compile("(\\d{4})");
+    private static final String UNKNOWN_STRING = "Unknown";
 
     public static int extractYear(String text) {
         if (text == null || text.isBlank()) return -1;

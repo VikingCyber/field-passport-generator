@@ -2,7 +2,7 @@ package com.viking.field_passport_generator.service;
 
 import com.viking.field_passport_generator.config.ChartConfig;
 import com.viking.field_passport_generator.data.dto.chart.ChartPoint;
-import com.viking.field_passport_generator.model.ChartImage;
+import com.viking.field_passport_generator.model.media.ChartImage;
 import org.knowm.xchart.BitmapEncoder;
 import org.knowm.xchart.XYChart;
 import org.knowm.xchart.XYChartBuilder;

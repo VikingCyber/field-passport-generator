@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель управления паспортами полей</title>
+    <script src="tailwind.min.js"></script>
+    <script defer src="alpine.min.js"></script>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col font-sans"
+      x-data="{ 
+          passports: [], 
+          searchQuery: '', 
+          selectedPassport: null, 
+          loading: true,
+          error: null,
+          
+          init() {
+              fetch('/api/passports')
+                  .then(res => {
+                      if (!res.ok) throw new Error('Не удалось загрузить данные кэша паспортов');
+                      return res.json();
+                  })
+                  .then(data => {
+                      this.passports = data;
+                      this.loading = false;
+                  })
+                  .catch(err => {
+                      this.error = err.message;
+                      this.loading = false;
+                  });
+          },
+
+          get filteredPassports() {
+              if (!this.searchQuery) return this.passports;
+              return this.passports.filter(p => 
+                  p.fieldName.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+                  p.cropName.toLowerCase().includes(this.searchQuery.toLowerCase())
+              );
+          }
+      }">
+
+<header class="bg-emerald-700 text-white p-4 shadow-md flex justify-between items-center">
+    <h1 class="text-xl font-bold tracking-wide">🌾 Генератор паспортов полей</h1>
+</header>
+
+<div class="flex flex-1 overflow-hidden">
+
+    <aside class="w-80 bg-white border-r border-gray-200 flex flex-col shadow-inner">
+        <div class="p-4 border-b border-gray-100 bg-gray-50">
+            <input type="text"
+                   x-model="searchQuery"
+                   placeholder="Поиск по названию или культуре..."
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm">
+            <div class="text-xs text-gray-500 mt-2 flex justify-between px-1">
+                <span>Всего записей в кэше: <strong x-text="passports.length">0</strong></span>
+                <span x-show="searchQuery" class="text-emerald-600 font-medium">Фильтр активен</span>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto divide-y divide-gray-100">
+            <div x-show="loading" class="p-8 text-center text-gray-500 text-sm">
+                <span class="animate-pulse">Агрегация данных кэша...</span>
+            </div>
+
+            <div x-show="error" class="p-4 m-3 bg-red-50 text-red-700 rounded-md text-xs border border-red-200" x-text="error"></div>
+
+            <template x-for="p in filteredPassports" :key="p.id + '-' + p.year">
+                <button @click="selectedPassport = p"
+                        class="w-full text-left p-4 hover:bg-emerald-50/50 transition-colors duration-150 flex flex-col gap-1 focus:outline-none"
+                        :class="selectedPassport && selectedPassport.id === p.id && selectedPassport.year === p.year ? 'bg-emerald-50 border-l-4 border-emerald-600 pl-3' : ''">
+                    <div class="flex justify-between items-start w-full">
+                        <span class="font-semibold text-gray-900 font-mono text-sm" x-text="p.fieldName"></span>
+                        <span class="text-xs font-mono text-gray-400" x-text="'#' + p.id"></span>
+                    </div>
+                    <div class="text-xs text-gray-600 truncate w-full" x-text="p.cropName"></div>
+                    <div class="flex justify-between text-[11px] text-gray-400 mt-1">
+                        <span x-text="'Сезон: ' + p.year"></span>
+                        <span x-text="p.area + ' га'"></span>
+                    </div>
+                </button>
+            </template>
+        </div>
+    </aside>
+
+    <main class="flex-1 bg-gray-50 flex flex-col">
+        <template x-if="!selectedPassport">
+            <div class="flex-1 flex flex-col items-center justify-center text-gray-400 p-8">
+                <svg class="w-16 h-16 stroke-current mb-4 opacity-60" fill="none" viewBox="0 0 24 24">
+                    <path stroke-linecap="round"
+                     stroke-linejoin="round" 
+                     stroke-width="1.5" 
+                     d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                     />
+                </svg>
+                <p class="text-sm font-medium text-center max-w-md">Выберите запись из реестра в боковой панели, чтобы открыть электронный паспорт поля.</p>
+            </div>
+        </template>
+
+        <template x-if="selectedPassport">
+            <div class="flex-1 flex flex-col h-full">
+                <div class="bg-white border-b border-gray-200 p-3 flex justify-between items-center shadow-sm z-10">
+                    <div class="text-sm font-medium text-gray-700">
+                        Текущий документ: <span class="font-bold text-gray-900" x-text="selectedPassport.fieldName"></span> 
+                        │ Сезон: <span class="font-mono px-2 py-0.5 text-emerald-700 text-xs" x-text="selectedPassport.year"></span>
+                    </div>
+                </div>
+                <div class="flex-1 bg-gray-600 relative p-4 h-full">
+                    <iframe x-bind:src="'/api/passports/' + selectedPassport.id + '/' + selectedPassport.year + '/pdf'"
+                            class="w-full h-full rounded shadow-lg border-0 bg-white"
+                            type="application/pdf">
+                    </iframe>
+                </div>
+            </div>
+        </template>
+    </main>
+</div>
+</body>
+</html>

@@ -1,6 +1,6 @@
 package com.viking.field_passport_generator.service;
 
-import com.viking.field_passport_generator.model.ChartImage;
+import com.viking.field_passport_generator.model.media.ChartImage;
 
 import java.util.Optional;
 

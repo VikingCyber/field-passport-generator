@@ -1,4 +1,4 @@
-package com.viking.field_passport_generator.model.note;
+package com.viking.field_passport_generator.model.tables;
 
 import java.time.LocalDateTime;
 

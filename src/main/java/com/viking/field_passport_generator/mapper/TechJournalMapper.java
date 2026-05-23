@@ -2,8 +2,8 @@ package com.viking.field_passport_generator.mapper;
 
 import com.viking.field_passport_generator.data.dictionary.MachineDictionary;
 import com.viking.field_passport_generator.data.dto.RawOperationData;
-import com.viking.field_passport_generator.model.MachineResource;
-import com.viking.field_passport_generator.model.TechJournalTableRow;
+import com.viking.field_passport_generator.model.common.MachineResource;
+import com.viking.field_passport_generator.model.tables.TechJournalTableRow;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;

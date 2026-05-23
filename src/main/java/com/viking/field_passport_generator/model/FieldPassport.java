@@ -1,11 +1,17 @@
 package com.viking.field_passport_generator.model;
 
-import com.viking.field_passport_generator.model.note.NoteSection;
+import com.viking.field_passport_generator.model.media.ChartImage;
+import com.viking.field_passport_generator.model.media.SatelliteImage;
+import com.viking.field_passport_generator.model.sections.NoteSection;
+import com.viking.field_passport_generator.model.sections.GeneralInfo;
+import com.viking.field_passport_generator.model.tables.OperationTableRow;
+import com.viking.field_passport_generator.model.tables.TechJournalTableRow;
 
 import java.util.List;
 import java.util.Objects;
 
 public record FieldPassport(
+    String fieldId,
     GeneralInfo generalInfo,
     List<OperationTableRow> operations,
     NoteSection notesSection,

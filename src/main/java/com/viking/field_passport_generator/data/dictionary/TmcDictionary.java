@@ -1,7 +1,7 @@
 package com.viking.field_passport_generator.data.dictionary;
 
 
-import com.viking.field_passport_generator.model.TmcItem;
+import com.viking.field_passport_generator.model.common.TmcItem;
 
 import java.util.List;
 import java.util.Map;

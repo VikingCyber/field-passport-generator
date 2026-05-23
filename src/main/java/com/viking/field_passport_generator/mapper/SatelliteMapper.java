@@ -1,9 +1,9 @@
 package com.viking.field_passport_generator.mapper;
 
 import com.viking.field_passport_generator.data.dto.satellite.SatelliteCaptureRule;
-import com.viking.field_passport_generator.model.OperationTableRow;
-import com.viking.field_passport_generator.model.SatelliteImage;
-import com.viking.field_passport_generator.model.SpectralIndex;
+import com.viking.field_passport_generator.model.tables.OperationTableRow;
+import com.viking.field_passport_generator.model.media.SatelliteImage;
+import com.viking.field_passport_generator.model.common.SpectralIndex;
 
 import java.time.LocalDate;
 import java.util.ArrayList;

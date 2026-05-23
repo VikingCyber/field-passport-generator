@@ -1,4 +1,7 @@
-package com.viking.field_passport_generator.model.note;
+package com.viking.field_passport_generator.model.sections;
+
+import com.viking.field_passport_generator.model.media.NoteImage;
+import com.viking.field_passport_generator.model.tables.NoteTableRow;
 
 import java.util.List;
 

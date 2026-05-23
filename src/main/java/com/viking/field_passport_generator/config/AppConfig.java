@@ -3,8 +3,9 @@ package com.viking.field_passport_generator.config;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.viking.field_passport_generator.config.record.*;
 import com.viking.field_passport_generator.data.dto.satellite.SatelliteCaptureRule;
-import com.viking.field_passport_generator.model.SpectralIndex;
+import com.viking.field_passport_generator.model.common.SpectralIndex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,12 +14,20 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.DateTimeException;
+import java.time.Duration;
 import java.time.ZoneId;
 import java.util.*;
 
 public class AppConfig {
     private static final Logger log = LoggerFactory.getLogger(AppConfig.class);
     private final JsonNode rootNode;
+
+    private AppRuntimeConfig cachedAppRuntime;
+    private StoragePathsConfig cachedStoragePaths;
+    private LocalFilesConfig cachedLocalFiles;
+    private AgroApiConfig cachedAgroApi;
+    private AgroPerformanceConfig cachedAgroPerf;
+    private SatelliteConfig cachedSatellite;
 
     public AppConfig() {
         this("application.yml");
@@ -58,6 +67,100 @@ public class AppConfig {
     private JsonNode findNode(String key) {
         String pointer = "/" + key.replace(".", "/");
         return rootNode.at(pointer);
+    }
+
+    public AppRuntimeConfig getAppRuntimeConfig() {
+        if (cachedAppRuntime == null) {
+            cachedAppRuntime = new AppRuntimeConfig(
+              getString(ConfigKeys.App.MODE, "web"),
+              getInt(ConfigKeys.App.Server.PORT, 8080),
+              getString(ConfigKeys.App.Server.HOST, "0.0.0.0"),
+              getTimezone(ConfigKeys.App.Locale.TIMEZONE, ZoneId.of("Asia/Krasnoyarsk")),
+              getString(ConfigKeys.App.Locale.DEFAULT_EMPTY_LABEL, "-"),
+              getString(ConfigKeys.App.Locale.EQUIPMENT_SEPARATOR, "-"),
+              getInt(ConfigKeys.App.Performance.MAX_CONCURRENT_TASKS, 10),
+                Duration.ofHours(getInt(ConfigKeys.App.Performance.AGGREGATION_THRESHOLD_HOURS, 48))
+            );
+        }
+        return cachedAppRuntime;
+    }
+
+    public StoragePathsConfig getStoragePathsConfig() {
+        if (cachedStoragePaths == null) {
+            Path cacheBase = getPath(ConfigKeys.App.Storage.CACHE_BASE_DIR, "cache/images");
+
+            long minFreeSpaceBytes = (long) getInt(ConfigKeys.App.Storage.MIN_FREE_SPACE_MB, 1024) * 1024L * 1024L;
+
+            cachedStoragePaths = new StoragePathsConfig(
+                    getPath(ConfigKeys.App.Storage.OUTPUT_DIR, "output"),
+                    cacheBase,
+                    getPath(ConfigKeys.App.Storage.Notes.DIR, cacheBase.resolve("notes").toString()),
+                    getPath(ConfigKeys.App.Storage.Charts.DIR, cacheBase.resolve("charts").toString()),
+                    minFreeSpaceBytes,
+                    getString(ConfigKeys.App.Storage.PASSPORT_EXTENSION, "pdf"),
+                    getString(ConfigKeys.App.Storage.Notes.EXTENSION, "jpg"),
+                    getString(ConfigKeys.App.Storage.Satellite.EXTENSION, "png"),
+                    getString(ConfigKeys.App.Storage.Charts.EXTENSION, "png"),
+                    getString(ConfigKeys.App.Storage.Charts.PREFIX, "chart_"),
+                    getInt(ConfigKeys.App.Storage.Charts.WIDTH, 2000),
+                    getInt(ConfigKeys.App.Storage.Charts.HEIGHT, 1200),
+                    getPath(ConfigKeys.App.Storage.Charts.FONT_PATH, "fonts/NotoSans-Regular.ttf")
+            );
+        }
+        return cachedStoragePaths;
+    }
+
+    public LocalFilesConfig getLocalFilesConfig() {
+        if (cachedLocalFiles == null) {
+            cachedLocalFiles = new LocalFilesConfig(
+                    getPath(ConfigKeys.App.LocalFiles.FIELD_DATA, "data/fieldData.json"),
+                    getPath(ConfigKeys.App.LocalFiles.OPERATIONS, "data/operationsData.json"),
+                    getPath(ConfigKeys.App.LocalFiles.TMC, "data/tmc.json"),
+                    getPath(ConfigKeys.App.LocalFiles.NOTES, "data/notesData.json"),
+                    getPath(ConfigKeys.App.LocalFiles.UNITS, "data/units.json")
+            );
+        }
+        return cachedLocalFiles;
+    }
+
+    public AgroApiConfig getAgroApiConfig() {
+        if (cachedAgroApi == null) {
+            cachedAgroApi = new AgroApiConfig(
+                    getString(ConfigKeys.Agro.Api.KEY, ""),
+                    getString(ConfigKeys.Agro.Api.BASE_URL, "https://mir.agrosignal.com/"),
+                    getString(ConfigKeys.Agro.Api.USER_AGENT, "Mozilla/5.0"),
+                    getLong(ConfigKeys.Agro.Api.MIN_DOWNLOAD_SIZE_BYTES, 1024),
+                    getLong(ConfigKeys.Agro.Api.RECOVERY_TIME_MS, 60000),
+                    getString(ConfigKeys.Agro.Api.Endpoints.ATTACHMENTS_INFO, "storage/files"),
+                    getString(ConfigKeys.Agro.Api.Endpoints.SPECTRAL_INDICES, "spectralIndices")
+            );
+        }
+        return cachedAgroApi;
+    }
+
+    public AgroPerformanceConfig getAgroPerformanceConfig() {
+        if (cachedAgroPerf == null) {
+            cachedAgroPerf = new AgroPerformanceConfig(
+                    getInt(ConfigKeys.Agro.Notes.MAX_CONCURRENT_REQUESTS, 10),
+                    getInt(ConfigKeys.Agro.Satellite.MAX_CONCURRENT_REQUESTS, 5)
+            );
+        }
+        return cachedAgroPerf;
+    }
+
+    public SatelliteConfig getSatelliteConfig() {
+        if (cachedSatellite == null) {
+            cachedSatellite = new SatelliteConfig(
+                    getDouble(ConfigKeys.Agro.Satellite.CLOUD_THRESHOLD, 0.8),
+                    getDouble(ConfigKeys.Agro.Satellite.CLOUD_WEIGHT_FACTOR, 0.5),
+                    getInt(ConfigKeys.Agro.Satellite.SCAN_WINDOW_DAYS, 7),
+                    getString(ConfigKeys.Agro.Satellite.FROM_DATE, "20240101"),
+                    getString(ConfigKeys.Agro.Satellite.TO_DATE, "20261231"),
+                    getSpectralIndex(ConfigKeys.Agro.Satellite.INDICES, Set.of(SpectralIndex.NDVI)),
+                    getMappingResult(ConfigKeys.Agro.Satellite.MAPPING)
+            );
+        }
+        return cachedSatellite;
     }
 
     public String getString(String key) {
@@ -107,7 +210,10 @@ public class AppConfig {
 
     public Path getPath(String key, String defaultValue) {
         String val = getString(key, defaultValue);
-        return Path.of(val);
+        Path path = Path.of(val);
+        log.info("Загрузка пути для ключа '{}': значение '{}' (существует: {})",
+                key, val, Files.exists(path));
+        return path;
     }
 
     public Set<SpectralIndex> getSpectralIndex(String key, Set<SpectralIndex> defaultValue) {
@@ -158,39 +264,5 @@ public class AppConfig {
             }
         }
         return defaultValue;
-    }
-
-    public SatelliteConfig getSatelliteConfig() {
-        return new SatelliteConfig(
-                getPath("agro.cache-dir", "cache/images"),
-                getString("agro.satellite.fromDate", "20240101"),
-                getString("agro.satellite.toDate", "20260101"),
-                getInt("agro.satellite.scan-window-days", 7),
-                getDouble("agro.satellite.cloud-threshold", 0.8),
-                getDouble("agro.satellite.cloud-weight-factor", 5.0),
-                getString("agro.satellite-extension", "png")
-        );
-    }
-
-    public NoteConfig getNoteConfig() {
-        return new NoteConfig(
-            getString("app.notes-dir", "notes"),
-            getString("app.notes-extension", "jpg"),
-            getPath("app.cache-dir", "cache/images")
-        );
-    }
-
-    public ChartConfig getChartConfig() {
-        return new ChartConfig(
-                getString("app.cache.charts.dir", "charts"),
-                getString("app.cache.charts.default-extension", "png"),
-                getString("app.cache.charts.file-prefix", "chart_"),
-                getInt("app.cache.charts.width", 800),
-                getInt("app.cache.charts.height", 400),
-                getPath("app.cache.path", "cache/images"),
-                getString("app.cache.charts.font-path", "fonts/NotoSans-Regular.ttf"),
-                getTimezone("app.timezone", ZoneId.of("Asia/Krasnoyarsk")),
-                getDouble("agro.satellite.cloud-threshold", 0.8)
-        );
     }
 }
