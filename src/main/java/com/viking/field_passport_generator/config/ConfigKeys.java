@@ -48,9 +48,11 @@ public final class ConfigKeys {
         }
 
         public static final class LocalFiles {
-            public static final String NOTES = "app.local-files.notes";
-            public static final String OPERATIONS = "app.local-files.operations";
-            public static final String TMC = "app.local-files.tmc";
+            public static final String FIELD_DATA = "app.local-files.field-data-path";
+            public static final String OPERATIONS = "app.local-files.operations-path";
+            public static final String TMC = "app.local-files.tmc-path";
+            public static final String NOTES = "app.local-files.notes-path";
+            public static final String UNITS = "app.local-files.units-path";
         }
     }
 

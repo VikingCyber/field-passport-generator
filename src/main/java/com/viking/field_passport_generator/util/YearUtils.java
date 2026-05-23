@@ -19,10 +19,4 @@ public class YearUtils {
         }
         return -1;
     }
-
-    public static String extractCropName(String text) {
-        if (text == null || text.isBlank()) return UNKNOWN_STRING;
-        String cleanName = YEAR_PATTERN.matcher(text).replaceAll("");
-        return cleanName.replaceAll("\\s+", " ").trim();
-    }
 }

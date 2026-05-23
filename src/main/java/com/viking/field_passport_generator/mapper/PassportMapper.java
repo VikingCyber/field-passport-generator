@@ -30,7 +30,7 @@ public class PassportMapper {
         int year = YearUtils.extractYear(rawCrop);
 
         if (year == -1) {
-            log.warn("Год не найден в описании культуры поля {}: '{}'", raw.field(), rawCrop);
+            log.debug("Год не найден в описании культуры поля {}: '{}'", raw.field(), rawCrop);
         }
 
         GeneralInfo info = new GeneralInfo(

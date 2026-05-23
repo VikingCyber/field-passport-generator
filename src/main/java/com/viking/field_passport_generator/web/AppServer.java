@@ -1,6 +1,7 @@
 package com.viking.field_passport_generator.web;
 
 import com.viking.field_passport_generator.config.AppContainer;
+import com.viking.field_passport_generator.service.orchestration.PassportOrchestrator;
 import com.viking.field_passport_generator.web.controller.FieldController;
 import io.javalin.Javalin;
 import io.javalin.http.staticfiles.Location;
@@ -10,8 +11,8 @@ import static io.javalin.apibuilder.ApiBuilder.path;
 public class AppServer {
     private final FieldController fieldController;
 
-    public AppServer(AppContainer container) {
-        this.fieldController = new FieldController(container);
+    public AppServer(PassportOrchestrator orchestrator) {
+        this.fieldController = new FieldController(orchestrator);
     }
 
     public void start(int port) {

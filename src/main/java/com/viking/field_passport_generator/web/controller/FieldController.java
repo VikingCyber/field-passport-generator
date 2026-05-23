@@ -1,8 +1,12 @@
 package com.viking.field_passport_generator.web.controller;
 
 import com.viking.field_passport_generator.config.AppContainer;
+import com.viking.field_passport_generator.data.provider.InMemoryDataProvider;
 import com.viking.field_passport_generator.model.FieldPassport;
+import com.viking.field_passport_generator.service.PassportGeneratorService;
+import com.viking.field_passport_generator.service.orchestration.PassportOrchestrator;
 import io.javalin.apibuilder.EndpointGroup;
+import io.javalin.http.BadRequestResponse;
 import io.javalin.http.Context;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,15 +14,16 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 
 import static io.javalin.apibuilder.ApiBuilder.*;
 
 public class FieldController implements EndpointGroup {
     private static final Logger log = LoggerFactory.getLogger(FieldController.class);
-    private final AppContainer container;
+    private final PassportOrchestrator orchestrator;
 
-    public FieldController(AppContainer container) {
-        this.container = container;
+    public FieldController(PassportOrchestrator orchestrator) {
+        this.orchestrator = orchestrator;
     }
 
     @Override
@@ -27,15 +32,11 @@ public class FieldController implements EndpointGroup {
         path("passports", () -> {
 
             // GET /api/passports
-            get(ctx -> {
-                var summaries = container.getWebDataProvider().getPassportSummaries();
-                ctx.json(summaries);
-            });
+            get(ctx -> ctx.json(orchestrator.getPassportSummaries()));
 
             // POST /api/passports/generate
             post("generate", ctx -> {
-                var allData = container.getDataProvider().getPassportsData();
-                container.getOrchestrator().processMassGeneration(allData);
+                orchestrator.startMassGeneration();
                 ctx.status(202).result("Generation started");
             });
 
@@ -45,29 +46,16 @@ public class FieldController implements EndpointGroup {
 
     private void streamPassportPdf(Context ctx) throws Exception {
         String passportId = ctx.pathParam("id");
-        int targetYear = Integer.parseInt(ctx.pathParam("year"));
+        int targetYear = ctx.pathParamAsClass("year", Integer.class)
+                .getOrThrow(value -> new BadRequestResponse("Неверный формат года"));
 
-        // Find the exact FieldPassport object in memory
-        FieldPassport targetedPassport = container.getDataProvider().getPassportsData().stream()
-                .filter(p -> p.fieldId().equals(passportId))
-                .filter(p -> p.generalInfo().year() == targetYear)
-                .findFirst()
-                .orElse(null);
+        Optional<Path> pdfPath = orchestrator.getVerifiedPassportPath(passportId, targetYear);
 
-        if (targetedPassport == null) {
+        if (pdfPath.isEmpty()) {
             ctx.status(404).result("Паспорт поля не найден.");
             return;
         }
-
-        // Determine file name based on the found object properties
-        Path filePath = container.getPdfService().resolvePassportPath(targetedPassport);
-        File pdfFile = filePath.toFile();
-
-        if (!pdfFile.exists()) {
-            log.info("Live rendering triggered for specific target: {}", pdfFile.getName());
-            container.getPdfService().generate(targetedPassport);
-        }
         ctx.contentType("application/pdf");
-        ctx.result(Files.newInputStream(filePath));
+        ctx.result(Files.newInputStream(pdfPath.get()));
     }
 }

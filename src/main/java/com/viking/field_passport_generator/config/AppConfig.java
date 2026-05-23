@@ -89,7 +89,6 @@ public class AppConfig {
         if (cachedStoragePaths == null) {
             Path cacheBase = getPath(ConfigKeys.App.Storage.CACHE_BASE_DIR, "cache/images");
 
-            // ФИКС: Явное приведение к longL во избежание переполнения int типа при умножении
             long minFreeSpaceBytes = (long) getInt(ConfigKeys.App.Storage.MIN_FREE_SPACE_MB, 1024) * 1024L * 1024L;
 
             cachedStoragePaths = new StoragePathsConfig(
@@ -114,9 +113,11 @@ public class AppConfig {
     public LocalFilesConfig getLocalFilesConfig() {
         if (cachedLocalFiles == null) {
             cachedLocalFiles = new LocalFilesConfig(
+                    getPath(ConfigKeys.App.LocalFiles.FIELD_DATA, "data/fieldData.json"),
+                    getPath(ConfigKeys.App.LocalFiles.OPERATIONS, "data/operationsData.json"),
+                    getPath(ConfigKeys.App.LocalFiles.TMC, "data/tmc.json"),
                     getPath(ConfigKeys.App.LocalFiles.NOTES, "data/notesData.json"),
-                    getPath(ConfigKeys.App.LocalFiles.OPERATIONS, "data/fieldData.json"),
-                    getPath(ConfigKeys.App.LocalFiles.TMC, "data/tmcData.json")
+                    getPath(ConfigKeys.App.LocalFiles.UNITS, "data/units.json")
             );
         }
         return cachedLocalFiles;
@@ -209,7 +210,10 @@ public class AppConfig {
 
     public Path getPath(String key, String defaultValue) {
         String val = getString(key, defaultValue);
-        return Path.of(val);
+        Path path = Path.of(val);
+        log.info("Загрузка пути для ключа '{}': значение '{}' (существует: {})",
+                key, val, Files.exists(path));
+        return path;
     }
 
     public Set<SpectralIndex> getSpectralIndex(String key, Set<SpectralIndex> defaultValue) {

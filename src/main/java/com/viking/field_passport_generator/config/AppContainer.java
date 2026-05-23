@@ -26,6 +26,7 @@ public class AppContainer {
 
     public AppContainer(AppConfig config) {
         // ===== 1. Разворачиваем типизированные рекорды =====
+        LocalFilesConfig filesConfig = config.getLocalFilesConfig();
         AppRuntimeConfig runtime = config.getAppRuntimeConfig();
         StoragePathsConfig paths = config.getStoragePathsConfig();
         AgroApiConfig agro = config.getAgroApiConfig();
@@ -61,7 +62,7 @@ public class AppContainer {
         // ===== 5. Data Aggregation & Provider =====
         FieldDataAggregator aggregator = createAggregator(runtime, satellite);
 
-        FileDataProvider fileDataProvider = new FileDataProvider(jsonParser, aggregator);
+        FileDataProvider fileDataProvider = new FileDataProvider(jsonParser, aggregator, filesConfig);
         InMemoryDataProvider cacheProvider = new InMemoryDataProvider(
                 paths.outputDir().toString(),
                 paths.passportExtension()
@@ -76,7 +77,9 @@ public class AppContainer {
         this.orchestrator = new PassportOrchestrator(
                 this.syncService,
                 this.pdfService,
-                runtime.maxConcurrentTasks()
+                cacheProvider,
+                runtime.maxConcurrentTasks(),
+                (passport) -> cacheProvider.registerNewPassport(passport.fieldId(), passport.generalInfo().year())
         );
     }
 
@@ -109,7 +112,7 @@ public class AppContainer {
                 agro.userAgent(),
                 agro.spectralIndicesEndpoint()
         );
-        // Собираем внутренний конфиг для спутниковой стратегии
+
         SatelliteConfigInternal satConfig = new SatelliteConfigInternal(
                 paths.cacheBaseDir(),
                 satellite.fromDate(),
