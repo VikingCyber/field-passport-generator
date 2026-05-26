@@ -2,6 +2,9 @@ package com.viking.field_passport_generator.service.orchestration;
 
 import com.viking.field_passport_generator.data.provider.InMemoryDataProvider;
 import com.viking.field_passport_generator.model.FieldPassport;
+import com.viking.field_passport_generator.model.common.PassportKey;
+import com.viking.field_passport_generator.model.common.PassportStatus;
+import com.viking.field_passport_generator.service.GenerationTracker;
 import com.viking.field_passport_generator.service.ImageSyncService;
 import com.viking.field_passport_generator.service.PassportGeneratorService;
 import com.viking.field_passport_generator.web.dto.PassportSummary;
@@ -23,24 +26,33 @@ public class PassportOrchestrator {
     private final InMemoryDataProvider cacheProvider;
     private final Semaphore memoryGuard;
     private final Consumer<FieldPassport> onPassportGenerated;
+    private final GenerationTracker generationTracker;
 
 
     public PassportOrchestrator(ImageSyncService syncService, PassportGeneratorService pdfService,
                                 InMemoryDataProvider cacheProvider, int maxConcurrentTasks,
-                                Consumer<FieldPassport> onPassportGenerated) {
+                                Consumer<FieldPassport> onPassportGenerated, GenerationTracker generationTracker) {
         this.syncService = syncService;
         this.pdfService = pdfService;
         this.cacheProvider = cacheProvider;
         this.memoryGuard = new Semaphore(maxConcurrentTasks);
         this.onPassportGenerated = onPassportGenerated;
+        this.generationTracker = generationTracker;
+    }
+
+    public PassportStatus getPassportStatus(String fieldId, int year) {
+        if (generationTracker.isProcessing(new PassportKey(fieldId, year))) {
+            return PassportStatus.PROCESSING;
+        }
+        return getVerifiedPassportPath(fieldId, year).isPresent() ? PassportStatus.READY : PassportStatus.NOT_FOUND;
     }
 
     public List<PassportSummary> getPassportSummaries() {
         return cacheProvider.getPassportSummaries();
     }
 
-    public void startMassGeneration() {
-        this.processMassGeneration(cacheProvider.getPassportsData());
+    public void startMassGeneration(boolean force) {
+        this.processMassGeneration(cacheProvider.getPassportsData(), force);
     }
 
     public Optional<Path> getVerifiedPassportPath(String fieldId, int year) {
@@ -62,7 +74,7 @@ public class PassportOrchestrator {
         return Optional.of(filePath);
     }
 
-    public void processMassGeneration(List<FieldPassport> passports) {
+    public void processMassGeneration(List<FieldPassport> passports, boolean force) {
         if (passports == null || passports.isEmpty()) {
             log.warn("Список паспортов пуст или null. Генерация пропущена.");
             return;
@@ -72,7 +84,7 @@ public class PassportOrchestrator {
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             for (FieldPassport passport : passports) {
                 executor.submit(() -> {
-                    processSinglePassport(passport);
+                    processSinglePassport(passport, force);
                     return null;
                 });
             }
@@ -80,11 +92,32 @@ public class PassportOrchestrator {
         log.info("Все задачи по генерации успешно завершены.");
     }
 
-    private void processSinglePassport(FieldPassport passport) {
+    public void startSingleGeneration(String fieldId, int year, boolean force) {
+        FieldPassport passport = cacheProvider.getPassportsData().stream()
+                .filter(p -> p.fieldId().equals(fieldId))
+                .filter(p -> p.generalInfo().year() == year)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Паспорт не найден в кэше для ID: " + fieldId + " Год: " + year
+                ));
+        Thread.startVirtualThread(() -> {
+            log.info("⚙️ Запущена точечная асинхронная генерация для поля: {} ({})",
+                    passport.generalInfo().fieldName(), year);
+            processSinglePassport(passport, force);
+        });
+    }
+
+    private void processSinglePassport(FieldPassport passport, boolean force) {
+        PassportKey key = new PassportKey(passport.fieldId(), passport.generalInfo().year());
+        if (!force && pdfService.resolvePassportPath(passport).toFile().exists()) {
+            log.info("Паспорт {} уже существует, генерация пропущена (force=false)", passport.fieldId());
+            return;
+        }
         boolean acquired = false;
         try {
             memoryGuard.acquire();
             acquired = true;
+            generationTracker.lock(key);
             log.debug("Обработка поля {}: Загрузка данных...", passport.generalInfo().fieldName());
             syncService.prepareSinglePassport(passport);
             log.debug("Обработка поля {}: Рендеринг PDF...", passport.generalInfo().fieldName());
@@ -99,6 +132,7 @@ public class PassportOrchestrator {
             log.error("Критическая ошибка при обработке поля {}", passport.generalInfo().fieldName(), e);
         } finally {
             passport.clearImageData();
+            generationTracker.unlock(key);
             if (acquired) {
                 memoryGuard.release();
             }

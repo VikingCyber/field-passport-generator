@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,9 +42,8 @@ public class PdfGeneratorService implements PassportGeneratorService {
     @Override
     public void generate(FieldPassport passport) {
         Path filePath = resolvePassportPath(passport);
-
+        Path tempPath = filePath.resolveSibling(filePath.getFileName() + ".tmp");
         log.info("==> Старт генерации PDF для поля: {} (Файл: {})", passport.generalInfo().fieldName(), filePath.getFileName());
-        log.debug("Генерация файла: {} для года {}", filePath.getFileName(), passport.generalInfo().year());
 
         checkStorageSafety(outputDir);
 
@@ -56,7 +56,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
         }
 
 
-        try (FileOutputStream fos = new FileOutputStream(filePath.toFile());
+        try (FileOutputStream fos = new FileOutputStream(tempPath.toFile());
                 BufferedOutputStream bos = new BufferedOutputStream(fos);
                 Document document = PdfUIHelper.createDocument()) {
 
@@ -73,8 +73,27 @@ public class PdfGeneratorService implements PassportGeneratorService {
             log.error("Ошибка ввода-вывода для {}: {}", filePath.getFileName(), e.getMessage());
             throw new RuntimeException("Ошибка файловой системы", e);
         }
+
+        try {
+            Files.move(tempPath, filePath, StandardCopyOption.REPLACE_EXISTING);
+            log.info("==> Документ успешно зафиксирован на диске: {}", filePath.toAbsolutePath());
+        } catch (IOException e) {
+            log.error("Критическая ошибка атомарной подмены файла для {}", filePath.getFileName(), e);
+            cleanTempFile(tempPath);
+            throw new RuntimeException("Не удалось обновить финальный PDF файл", e);
+        }
         
         log.info("==> Генерация завершена. Путь: {}", filePath.toAbsolutePath());
+    }
+
+    private void cleanTempFile(Path tempPath) {
+        try {
+            if (tempPath != null && Files.deleteIfExists(tempPath)) {
+                log.debug("Поврежденный временный файо успешно удалён: {}", tempPath.getFileName());
+            }
+        } catch (IOException e) {
+            log.error("Не удалось удалить временный файл: {}", tempPath, e);
+        }
     }
 
     private void checkStorageSafety(Path outputDir) {

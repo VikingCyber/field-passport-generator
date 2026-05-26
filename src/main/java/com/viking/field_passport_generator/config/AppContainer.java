@@ -73,13 +73,17 @@ public class AppContainer {
         // ===== 6. PDF Generation =====
         this.pdfService = new PdfGeneratorService(paths.minFreeSpaceBytes(), paths.outputDir());
 
+        GenerationTracker generationTracker = new GenerationTracker();
+
         // ===== 7. Orchestration =====
         this.orchestrator = new PassportOrchestrator(
                 this.syncService,
                 this.pdfService,
                 cacheProvider,
                 runtime.maxConcurrentTasks(),
-                (passport) -> cacheProvider.registerNewPassport(passport.fieldId(), passport.generalInfo().year())
+                (passport) -> cacheProvider.registerNewPassport(passport.fieldId(),
+                        passport.generalInfo().year()),
+                generationTracker
         );
     }
 
