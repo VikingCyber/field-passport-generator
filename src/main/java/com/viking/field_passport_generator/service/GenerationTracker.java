@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class GenerationTracker {
     private static final Logger log = LoggerFactory.getLogger(GenerationTracker.class);
     private final Map<PassportKey, Long> activeLocks = new ConcurrentHashMap<>();
-    private static final long LOCK_TTL_MS = 45_000L;
+    private static final long LOCK_TTL_MS = 600_000L;
 
     public void lock(PassportKey key) {
         activeLocks.put(key, System.currentTimeMillis());
@@ -33,6 +33,7 @@ public class GenerationTracker {
         if (System.currentTimeMillis() - lockTime > LOCK_TTL_MS) {
             activeLocks.remove(key);
             log.warn("Блокировка для [{}] снята автоматически по таймауту (TTL expired)", key);
+            return false;
         }
         return true;
     }

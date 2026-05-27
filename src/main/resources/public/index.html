@@ -1,97 +1,105 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Панель управления паспортами полей</title>
-    <script src="tailwind.min.js"></script>
-    <script defer src="alpine.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Панель управления паспортами полей</title>
+  <script src="tailwind.min.js"></script>
+  <script defer src="alpine.min.js"></script>
 </head>
-<body class="bg-gray-100 h-screen flex flex-col font-sans"
-      x-data="{ 
-          passports: [], 
-          searchQuery: '', 
-          selectedPassport: null, 
-          loading: true,
-          error: null,
-          massGenerating: false,
-          pollingInterval: null, // Один глобальный таймер на всё приложение
-          
-          init() {
-              this.loadPassports();
-          },
 
-          // При загрузке сразу маппим базовый статус для каждого паспорта
-          loadPassports() {
-              fetch('/api/passports')
-                  .then(res => {
-                      if (!res.ok) throw new Error('Не удалось загрузить данные кэша паспортов');
-                      return res.json();
-                  })
-                  .then(data => {
-                      this.passports = data.map(p => ({
-                          ...p,
-                          status: p.isPdfExists ? 'READY' : 'NOT_FOUND'
-                      }));
-                      this.loading = false;
-                  })
-                  .catch(err => {
-                      this.error = err.message;
-                      this.loading = false;
-                  });
-          },
+<body class="bg-gray-100 h-screen flex flex-col font-sans" x-data="{ 
+        passports: [], 
+        searchQuery: '', 
+        selectedPassport: null, 
+        loading: true,
+        error: null,
+        massGenerating: false,
+        pollingInterval: null,
+        generatingSet: new Set(),
+        
+        init() {
+            this.loadPassports();
+        },
 
-          get filteredPassports() {
-              if (!this.searchQuery) return this.passports;
-              return this.passports.filter(p => 
-                  p.fieldName.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-                  p.cropName.toLowerCase().includes(this.searchQuery.toLowerCase())
-              );
-          },
+        loadPassports() {
+            fetch('/api/passports')
+                .then(res => {
+                    if (!res.ok) throw new Error('Не удалось загрузить данные кэша паспортов');
+                    return res.json();
+                })
+                .then(data => {
+                    this.passports = data;
+                    this.loading = false;
+                })
+                .catch(err => {
+                    this.error = err.message;
+                    this.loading = false;
+                });
+        },
 
-          // Вспомогательный метод для запуска единого поллинга сети
-          startGlobalPolling() {
-              if (this.pollingInterval) clearInterval(this.pollingInterval);
+        get filteredPassports() {
+            if (!this.searchQuery) return this.passports;
+            return this.passports.filter(p => 
+                p.fieldName.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
+                p.cropName.toLowerCase().includes(this.searchQuery.toLowerCase())
+            );
+        },
 
-              this.pollingInterval = setInterval(() => {
-                  fetch('/api/passports')
-                      .then(res => res.json())
-                      .then(serverData => {
-                          let stillProcessing = false;
+        startGlobalPolling() {
+            if (this.pollingInterval) clearInterval(this.pollingInterval);
 
-                          this.passports.forEach(localP => {
-                              let serverP = serverData.find(s => s.id === localP.id && s.year === localP.year);
-                              if (serverP) {
-                                  localP.isPdfExists = serverP.isPdfExists;
-                                  
-                                  // Если на бэке файл готов — разблокируем карточку
-                                  if (serverP.isPdfExists) {
-                                      localP.status = 'READY';
-                                  } else if (localP.status === 'PROCESSING') {
-                                      // Если файла всё ещё нет, но мы его ждем
-                                      stillProcessing = true;
-                                  }
-                              }
-                          });
+            this.pollingInterval = setInterval(() => {
+                fetch('/api/passports')
+                    .then(res => res.json())
+                    .then(serverData => {
+                        let stillProcessing = false;
 
-                          // Если больше никто не варится в потоках — выключаем поллинг сети
-                          if (!stillProcessing) {
-                              clearInterval(this.pollingInterval);
-                              this.pollingInterval = null;
-                              this.massGenerating = false;
-                          }
-                      })
-                      .catch(err => console.error('Ошибка фонового обновления статусов:', err));
-              }, 3000); // Опрос раз в 3 секунды идеален для сети и браузера
-          },
+                        this.passports = this.passports.map(localP => {
+                            let serverP = serverData.find(s => s.id === localP.id && s.year === localP.year);
+                            if (serverP) {
+                                // Если хотя бы один паспорт на сервере всё еще варится — поллинг должен продолжаться
+                                if (serverP.status === 'PROCESSING') {
+                                    stillProcessing = true;
+                                }
+                                
+                                // Сервер теперь — Single Source of Truth. Просто берем его статус!
+                                if (localP.status !== serverP.status) {
+                                    return { ...localP, status: serverP.status };
+                                }
+                            }
+                            return localP;
+                        });
 
-          // Массовая генерация: гасим все незавершённые поля разом
-          startMassGeneration(force = false) {
+                        // Обновляем статус в боковой панели детального просмотра, если она открыта
+                        if (this.selectedPassport) {
+                            const updated = this.passports.find(p => 
+                                p.id === this.selectedPassport.id && p.year === this.selectedPassport.year
+                            );
+                            if (updated && updated.status !== this.selectedPassport.status) {
+                                this.selectedPassport.status = updated.status;
+                            }
+                        }
+
+                        // Если на сервере больше нет активных процессов генерации — глушим поллинг
+                        if (!stillProcessing) {
+                            clearInterval(this.pollingInterval);
+                            this.pollingInterval = null;
+                            this.massGenerating = false;
+                            this.generatingSet.clear();
+                        }
+                    })
+                    .catch(err => console.error('Ошибка фонового обновления статусов:', err));
+            }, 2000);
+        },
+
+        startMassGeneration(force = false) {
             if (force && !confirm('ВНИМАНИЕ: Это действие запустит полную перегенерацию всех документов. Это может занять время. Продолжить?')) {
                 return;
             }
             if (!force) {
-                const pendingCount = this.passports.filter(p => !p.isPdfExists).length;
+                const pendingCount = this.passports.filter(p => p.status !== 'READY').length;
                 if (pendingCount === 0) {
                     alert('✅ Все паспорта актуальны.');
                     return;
@@ -102,185 +110,208 @@
             }
 
             this.massGenerating = true;
+            this.generatingSet.clear();
+            
+            this.passports.forEach(p => {
+                const shouldProcess = force || p.status !== 'READY';
+                if (shouldProcess) {
+                    this.generatingSet.add(`${p.id}-${p.year}`);
+                }
+            });
+        
             fetch(`/api/passports/generate?force=${force}`, { method: 'POST' })
                 .then(res => {
                     if (res.status === 202) {
-                        // Переводим все карточки без PDF в режим обработки (они тут же заблокируются)
-                        this.passports.forEach(p => {
-                            if (force || !p.isPdfExists) p.status = 'PROCESSING';
+                        this.passports = this.passports.map(p => {
+                            const shouldProcess = force || p.status !== 'READY';
+                            if (shouldProcess) {
+                                return { ...p, status: 'PROCESSING' };
+                            }
+                            return p;
                         });
-                        // Запускаем ОДИН таймер слежения за результатом
+                        
+                        if (this.selectedPassport) {
+                            const updated = this.passports.find(p => 
+                                p.id === this.selectedPassport.id && p.year === this.selectedPassport.year
+                            );
+                            if (updated) {
+                                this.selectedPassport.status = updated.status;
+                            }
+                        }
+                        
                         this.startGlobalPolling();
                     }
                 })
                 .catch(err => {
+                    console.error('Ошибка:', err);
                     alert('Ошибка запуска: ' + err.message);
                     this.massGenerating = false;
+                    this.generatingSet.clear();
                 });
-          },
+        },
 
-          selectPassport(p) {
-              this.selectedPassport = p;
-          },
-          
-          // Одиночная генерация: блокирует только целевую карточку
-          generateSinglePassport(p) {
-              if (!p) return;
-              
-              p.status = 'PROCESSING';
-              
-              fetch(`/api/passports/${p.id}/${p.year}/generate`, { method: 'POST' })
-                  .then(res => {
-                      if (res.status === 202) {
-                          // Включаем глобальный таймер для отслеживания изменений
-                          this.startGlobalPolling();
-                      } else {
-                          alert('Бэкенд отклонил запрос на генерацию паспорта поля');
-                          p.status = p.isPdfExists ? 'READY' : 'NOT_FOUND';
-                      }
-                  })
-                  .catch(err => {
-                      console.error('Ошибка одиночной генерации:', err);
-                      p.status = p.isPdfExists ? 'READY' : 'NOT_FOUND';
-                  });
-          }
+        selectPassport(p) {
+            this.selectedPassport = p;
+        },
+        
+        generateSinglePassport(p) {
+            if (!p) return;
+            
+            const key = `${p.id}-${p.year}`;
+            this.generatingSet.add(key);
+            p.status = 'PROCESSING';
+            
+            fetch(`/api/passports/${p.id}/${p.year}/generate`, { method: 'POST' })
+                .then(res => {
+                    if (res.status === 202) {
+                        this.startGlobalPolling();
+                    } else {
+                        alert('Бэкенд отклонил запрос на генерацию паспорта поля');
+                        this.loadPassports();
+                        this.generatingSet.delete(key);
+                    }
+                })
+                .catch(err => {
+                    console.error('Ошибка одиночной генерации:', err);
+                    this.loadPassports();
+                    this.generatingSet.delete(key);
+                });
+        }
       }">
 
-<header class="bg-emerald-700 text-white p-4 shadow-md flex justify-between items-center">
+  <header class="bg-emerald-700 text-white p-4 shadow-md flex justify-between items-center">
     <h1 class="text-xl font-bold tracking-wide">🌾 Генератор паспортов полей</h1>
     <div class="flex gap-2">
-        <button @click="startMassGeneration(false)" 
-                :disabled="massGenerating || pollingInterval !== null"
-                class="bg-amber-500 hover:bg-amber-600 disabled:bg-gray-400 text-gray-900 font-semibold px-4 py-2 rounded shadow transition duration-150 text-sm flex items-center gap-2">
-            <span x-show="massGenerating || pollingInterval !== null" class="animate-spin">🔄</span>
-            <span>📋 Актуализировать паспорта</span>
-        </button>
+      <button @click="startMassGeneration(false)" :disabled="massGenerating || pollingInterval !== null"
+        class="bg-amber-500 hover:bg-amber-600 disabled:bg-gray-400 text-gray-900 font-semibold px-4 py-2 rounded shadow transition duration-150 text-sm flex items-center gap-2">
+        <span x-show="massGenerating || pollingInterval !== null" class="animate-spin">🔄</span>
+        <span>📋 Актуализировать паспорта</span>
+      </button>
 
-        <button @click="startMassGeneration(true)"
-                :disabled="massGenerating || pollingInterval !== null"
-                class="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold px-4 py-2 rounded shadow transition text-sm flex items-center gap-2">
-            <span x-show="massGenerating || pollingInterval !== null" ></span>
-            <span>⚡Пересоздать всё</span>
-        </button>
+      <button @click="startMassGeneration(true)" :disabled="massGenerating || pollingInterval !== null"
+        class="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold px-4 py-2 rounded shadow transition text-sm flex items-center gap-2">
+        <span>⚡ Пересоздать всё</span>
+      </button>
     </div>
+  </header>
 
-</header>
-
-<div class="flex flex-1 overflow-hidden">
-
+  <div class="flex flex-1 overflow-hidden">
     <aside class="w-80 bg-white border-r border-gray-200 flex flex-col shadow-inner">
-        <div class="p-4 border-b border-gray-100 bg-gray-50">
-            <input type="text"
-                   x-model="searchQuery"
-                   placeholder="Поиск по названию или культуре..."
-                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm">
-            <div class="text-xs text-gray-500 mt-2 flex justify-between px-1">
-                <span>Всего записей в кэше: <strong x-text="passports.length">0</strong></span>
-                <span x-show="searchQuery" class="text-emerald-600 font-medium">Фильтр активен</span>
-            </div>
+      <div class="p-4 border-b border-gray-100 bg-gray-50">
+        <input type="text" x-model="searchQuery" placeholder="Поиск по названию или культуре..."
+          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm">
+        <div class="text-xs text-gray-500 mt-2 flex justify-between px-1">
+          <span>Всего записей в кэше: <strong x-text="passports.length">0</strong></span>
+          <span x-show="searchQuery" class="text-emerald-600 font-medium">Фильтр активен</span>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto divide-y divide-gray-100">
+        <div x-show="loading" class="p-8 text-center text-gray-500 text-sm">
+          <span class="animate-pulse">Агрегация данных кэша...</span>
         </div>
 
-        <div class="flex-1 overflow-y-auto divide-y divide-gray-100">
-            <div x-show="loading" class="p-8 text-center text-gray-500 text-sm">
-                <span class="animate-pulse">Агрегация данных кэша...</span>
+        <div x-show="error" class="p-4 m-3 bg-red-50 text-red-700 rounded-md text-xs border border-red-200"
+          x-text="error"></div>
+
+        <template x-for="p in filteredPassports" :key="p.id + '-' + p.year">
+          <button @click="selectPassport(p)" :disabled="p.status === 'PROCESSING'"
+            class="w-full text-left p-4 hover:bg-emerald-50/50 transition-colors duration-150 flex flex-col gap-1 focus:outline-none disabled:opacity-60 disabled:bg-amber-50/10"
+            :class="selectedPassport && selectedPassport.id === p.id && selectedPassport.year === p.year ? 'bg-emerald-50 border-l-4 border-emerald-600 pl-3' : ''">
+
+            <div class="flex justify-between items-start w-full">
+              <span class="font-semibold text-gray-900 font-mono text-sm" x-text="p.fieldName"></span>
+              <span x-show="p.status === 'PROCESSING'" class="text-amber-500 animate-spin text-xs">🔄</span>
+              <span x-show="p.status !== 'PROCESSING'" class="text-xs font-mono text-gray-400"
+                x-text="'#' + p.id"></span>
             </div>
 
-            <div x-show="error" class="p-4 m-3 bg-red-50 text-red-700 rounded-md text-xs border border-red-200" x-text="error"></div>
+            <div class="text-xs text-gray-600 truncate w-full" x-text="p.cropName"></div>
 
-            <template x-for="p in filteredPassports" :key="p.id + '-' + p.year">
-                <button @click="selectPassport(p)"
-                        :disabled="p.status === 'PROCESSING'"
-                        class="w-full text-left p-4 hover:bg-emerald-50/50 transition-colors duration-150 flex flex-col gap-1 focus:outline-none disabled:opacity-60 disabled:bg-amber-50/10"
-                        :class="selectedPassport && selectedPassport.id === p.id && selectedPassport.year === p.year ? 'bg-emerald-50 border-l-4 border-emerald-600 pl-3' : ''">
-                    
-                    <div class="flex justify-between items-start w-full">
-                        <span class="font-semibold text-gray-900 font-mono text-sm" x-text="p.fieldName"></span>
-                        
-                        <span x-show="p.status === 'PROCESSING'" class="text-amber-500 animate-spin text-xs">🔄</span>
-                        <span x-show="p.status !== 'PROCESSING'" class="text-xs font-mono text-gray-400" x-text="'#' + p.id"></span>
-                    </div>
-                    
-                    <div class="text-xs text-gray-600 truncate w-full" x-text="p.cropName"></div>
-                    
-                    <div class="flex justify-between text-[11px] text-gray-400 mt-1">
-                        <span x-text="'Сезон: ' + p.year"></span>
-                        <span class="flex items-center gap-1">
-                            <span :class="{
+            <div class="flex justify-between text-[11px] text-gray-400 mt-1">
+              <span x-text="'Сезон: ' + p.year"></span>
+              <span class="flex items-center gap-1">
+                <span :class="{
                                       'text-emerald-600 font-semibold': p.status === 'READY',
                                       'text-amber-600 animate-pulse': p.status === 'PROCESSING',
                                       'text-gray-400': p.status === 'NOT_FOUND'
-                                  }" 
-                                  x-text="p.status === 'READY' ? '● PDF' : (p.status === 'PROCESSING' ? '⏳ Сборка...' : '○ Нет PDF')">
-                            </span>
-                            <span x-text="'│ ' + p.area + ' га'"></span>
-                        </span>
-                    </div>
-                </button>
-            </template>
-        </div>
+                                  }"
+                  x-text="p.status === 'READY' ? '● PDF' : (p.status === 'PROCESSING' ? '⏳ Сборка...' : '○ Нет PDF')">
+                </span>
+                <span x-text="'│ ' + p.area + ' га'"></span>
+              </span>
+            </div>
+          </button>
+        </template>
+      </div>
     </aside>
 
     <main class="flex-1 bg-gray-50 flex flex-col">
-        <template x-if="!selectedPassport">
-            <div class="flex-1 flex flex-col items-center justify-center text-gray-400 p-8">
-                <svg class="w-16 h-16 stroke-current mb-4 opacity-60" fill="none" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                <p class="text-sm font-medium text-center max-w-md">Выберите запись из реестра в боковой панели, чтобы открыть электронный паспорт поля.</p>
-            </div>
-        </template>
+      <template x-if="!selectedPassport">
+        <div class="flex-1 flex flex-col items-center justify-center text-gray-400 p-8">
+          <svg class="w-16 h-16 stroke-current mb-4 opacity-60" fill="none" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <p class="text-sm font-medium text-center max-w-md">Выберите запись из реестра в боковой панели, чтобы открыть
+            электронный паспорт поля.</p>
+        </div>
+      </template>
 
-        <template x-if="selectedPassport">
-            <div class="flex-1 flex flex-col h-full">
-                <div class="bg-white border-b border-gray-200 p-3 flex justify-between items-center shadow-sm z-10">
-                    <div class="text-sm font-medium text-gray-700">
-                        Текущий документ: <span class="font-bold text-gray-900" x-text="selectedPassport.fieldName"></span> 
-                        │ Сезон: <span class="font-mono px-2 py-0.5 text-emerald-700 text-xs" x-text="selectedPassport.year"></span>
-                    </div>
-                    
-                    <div class="flex items-center gap-3">
-                        <button @click="generateSinglePassport(selectedPassport)"
-                                :disabled="selectedPassport.status === 'PROCESSING'"
-                                class="px-3 py-1 font-semibold rounded text-xs shadow transition duration-150 flex items-center gap-1 disabled:bg-gray-300 disabled:text-gray-500"
-                                :class="selectedPassport.isPdfExists ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-blue-600 text-white hover:bg-blue-700'">
-                            <span x-text="selectedPassport.isPdfExists ? '🔄 Обновить паспорт' : '➕ Сформировать паспорт'"></span>                    
-                        </button>
-                    
-                        <div class="text-xs px-3 py-1 rounded font-semibold tracking-wide"
-                             :class="{
+      <template x-if="selectedPassport">
+        <div class="flex-1 flex flex-col h-full">
+          <div class="bg-white border-b border-gray-200 p-3 flex justify-between items-center shadow-sm z-10">
+            <div class="text-sm font-medium text-gray-700">
+              Текущий документ: <span class="font-bold text-gray-900" x-text="selectedPassport.fieldName"></span>
+              │ Сезон: <span class="font-mono px-2 py-0.5 text-emerald-700 text-xs"
+                x-text="selectedPassport.year"></span>
+            </div>
+
+            <div class="flex items-center gap-3">
+              <button @click="generateSinglePassport(selectedPassport)"
+                :disabled="selectedPassport.status === 'PROCESSING'"
+                class="px-3 py-1 font-semibold rounded text-xs shadow transition duration-150 flex items-center gap-1 disabled:bg-gray-300 disabled:text-gray-500"
+                :class="selectedPassport.status === 'READY' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-blue-600 text-white hover:bg-blue-700'">
+                <span
+                  x-text="selectedPassport.status === 'READY' ? '🔄 Обновить паспорт' : '➕ Сформировать паспорт'"></span>
+              </button>
+
+              <div class="text-xs px-3 py-1 rounded font-semibold tracking-wide" :class="{
                                  'bg-amber-100 text-amber-800 animate-pulse': selectedPassport.status === 'PROCESSING',
                                  'bg-emerald-100 text-emerald-800': selectedPassport.status === 'READY',
                                  'bg-gray-200 text-gray-700': selectedPassport.status === 'NOT_FOUND'
                              }"
-                             x-text="selectedPassport.status === 'PROCESSING' ? 'ГЕНЕРАЦИЯ В ПОТОКЕ...' : (selectedPassport.status === 'READY' ? 'ДОКУМЕНТ ГОТОВ' : 'НЕ СГЕНЕРИРОВАН')">
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="flex-1 bg-gray-600 relative p-4 h-full">
-                    
-                    <div x-show="selectedPassport.status === 'PROCESSING'" class="absolute inset-0 bg-gray-900/80 z-20 flex flex-col items-center justify-center text-white p-4">
-                        <div class="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                        <p class="text-base font-semibold">Идет построение паспорта поля...</p>
-                        <p class="text-xs text-gray-400 mt-1">Оркестратор рендерит графики вегетации и формирует PDF.</p>
-                    </div>
-
-                    <div x-show="selectedPassport.status === 'NOT_FOUND'" class="absolute inset-0 bg-gray-800 z-20 flex flex-col items-center justify-center text-gray-300 p-4">
-                        <span class="text-4xl mb-2">📂</span>
-                        <p class="text-sm font-medium">Файл паспорта отсутствует.</p>
-                        <p class="text-xs text-gray-500 mt-1 max-w-xs text-center">Запустите генерацию, чтобы отчет для текущего сезона отобразился здесь.</p>
-                    </div>
-
-                    <template x-if="selectedPassport.status === 'READY'">
-                        <iframe x-bind:src="'/api/passports/' + selectedPassport.id + '/' + selectedPassport.year + '/pdf'"
-                                class="w-full h-full rounded shadow-lg border-0 bg-white"
-                                type="application/pdf">
-                        </iframe>
-                    </template>
-                </div>
+                x-text="selectedPassport.status === 'PROCESSING' ? 'ГЕНЕРАЦИЯ В ПОТОКЕ...' : (selectedPassport.status === 'READY' ? 'ДОКУМЕНТ ГОТОВ' : 'НЕ СГЕНЕРИРОВАН')">
+              </div>
             </div>
-        </template>
+          </div>
+
+          <div class="flex-1 bg-gray-600 relative p-4 h-full">
+            <div x-show="selectedPassport.status === 'PROCESSING'"
+              class="absolute inset-0 bg-gray-900/80 z-20 flex flex-col items-center justify-center text-white p-4">
+              <div class="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mb-4">
+              </div>
+              <p class="text-base font-semibold">Идет построение паспорта поля...</p>
+              <p class="text-xs text-gray-400 mt-1">Оркестратор рендерит графики вегетации и формирует PDF.</p>
+            </div>
+
+            <div x-show="selectedPassport.status === 'NOT_FOUND'"
+              class="absolute inset-0 bg-gray-800 z-20 flex flex-col items-center justify-center text-gray-300 p-4">
+              <span class="text-4xl mb-2">📂</span>
+              <p class="text-sm font-medium">Файл паспорта отсутствует.</p>
+              <p class="text-xs text-gray-500 mt-1 max-w-xs text-center">Запустите генерацию, чтобы отчет для текущего
+                сезона отобразился здесь.</p>
+            </div>
+
+            <template x-if="selectedPassport.status === 'READY'">
+              <iframe :src="'/api/passports/' + selectedPassport.id + '/' + selectedPassport.year + '/pdf'"
+                class="w-full h-full rounded shadow-lg border-0 bg-white" type="application/pdf">
+              </iframe>
+            </template>
+          </div>
+        </div>
+      </template>
     </main>
-</div>
+  </div>
 </body>
 </html>

@@ -2,6 +2,7 @@ package com.viking.field_passport_generator.data.provider;
 
 import com.viking.field_passport_generator.model.FieldPassport;
 import com.viking.field_passport_generator.model.common.PassportKey;
+import com.viking.field_passport_generator.model.common.PassportStatus;
 import com.viking.field_passport_generator.web.dto.PassportSummary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,7 +47,8 @@ public class InMemoryDataProvider implements DataProvider, WebDataProvider {
                 .map(field -> {
                     String fieldId = field.fieldId();
                     int year = field.generalInfo().year();
-                    boolean exists = existingPassportsCache.containsKey(new PassportKey(fieldId, year));
+                    boolean fileExists = existingPassportsCache.containsKey(new PassportKey(fieldId, year));
+                    PassportStatus baseStatus = fileExists ? PassportStatus.READY : PassportStatus.NOT_FOUND;
 
                     return new PassportSummary(
                             field.fieldId(),
@@ -54,7 +56,7 @@ public class InMemoryDataProvider implements DataProvider, WebDataProvider {
                             field.generalInfo().rotation().crop(),
                             year,
                             field.generalInfo().fieldArea(),
-                            exists
+                            baseStatus.name()
                     );
                 })
                 .toList();

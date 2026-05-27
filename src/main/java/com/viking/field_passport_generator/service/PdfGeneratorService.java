@@ -20,10 +20,7 @@ import org.slf4j.LoggerFactory;
 import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.FileStore;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,7 +39,8 @@ public class PdfGeneratorService implements PassportGeneratorService {
     @Override
     public void generate(FieldPassport passport) {
         Path filePath = resolvePassportPath(passport);
-        Path tempPath = filePath.resolveSibling(filePath.getFileName() + ".tmp");
+        String uniqueTempName = filePath.getFileName().toString().replace(".pdf", "_" + UUID.randomUUID() + ".tmp");
+        Path tempPath = filePath.resolveSibling(uniqueTempName);
         log.info("==> Старт генерации PDF для поля: {} (Файл: {})", passport.generalInfo().fieldName(), filePath.getFileName());
 
         checkStorageSafety(outputDir);
@@ -55,6 +53,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
             throw new RuntimeException("Не удалось создать директорию", e);
         }
 
+        boolean isMovedSuccessfully = false;
 
         try (FileOutputStream fos = new FileOutputStream(tempPath.toFile());
                 BufferedOutputStream bos = new BufferedOutputStream(fos);
@@ -65,34 +64,64 @@ public class PdfGeneratorService implements PassportGeneratorService {
             document.open();
             log.debug("PDF документ открыт");
             fillDocument(document, passport, writer);
-
         } catch (DocumentException e) {
-            log.error("Ошибка структуры PDF (iText) для {}: {}", passport.generalInfo().fieldName(), e.getMessage());
+            log.error("Ошибка структуры PDF (OpenPDF) для {}: {}", passport.generalInfo().fieldName(), e.getMessage());
             throw new RuntimeException("Ошибка форматирования PDF", e);
         } catch (IOException e) {
             log.error("Ошибка ввода-вывода для {}: {}", filePath.getFileName(), e.getMessage());
             throw new RuntimeException("Ошибка файловой системы", e);
         }
-
         try {
-            Files.move(tempPath, filePath, StandardCopyOption.REPLACE_EXISTING);
+            safeAtomicMove(tempPath, filePath);
+            isMovedSuccessfully = true;
             log.info("==> Документ успешно зафиксирован на диске: {}", filePath.toAbsolutePath());
         } catch (IOException e) {
             log.error("Критическая ошибка атомарной подмены файла для {}", filePath.getFileName(), e);
-            cleanTempFile(tempPath);
             throw new RuntimeException("Не удалось обновить финальный PDF файл", e);
+        } finally {
+            // 3. Защитник на своем месте
+            if (!isMovedSuccessfully) {
+                log.warn("Генерация сорвалась или прервана. Подчищаем временный файл: {}", tempPath.getFileName());
+                cleanTempFile(tempPath);
+            }
         }
-        
         log.info("==> Генерация завершена. Путь: {}", filePath.toAbsolutePath());
     }
 
-    private void cleanTempFile(Path tempPath) {
+    private void safeAtomicMove(Path source, Path target) throws IOException {
+        int maxAttempts = 5;
+        long sleepMs = 50;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+                return;
+            } catch (FileSystemException e) {
+                if (attempt == maxAttempts) {
+                    throw new IOException("Не удалось выполнить атомарную подмену файла после " + maxAttempts + " попыток", e);
+                }
+                try {
+                    Thread.sleep(sleepMs * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Перенос файла прерван", ie);
+                }
+            }
+        }
+    }
+
+    private void cleanTempFile(Path tempFile) {
         try {
-            if (tempPath != null && Files.deleteIfExists(tempPath)) {
-                log.debug("Поврежденный временный файо успешно удалён: {}", tempPath.getFileName());
+            int maxAttempts = 3;
+            for (int i = 0; i < maxAttempts; i++) {
+                if (Files.deleteIfExists(tempFile)) {
+                    return;
+                }
+                Thread.sleep(50);
             }
         } catch (IOException e) {
-            log.error("Не удалось удалить временный файл: {}", tempPath, e);
+            log.warn("Не удалось удалить временный файл {} (возможно, заблокирован ОС): {}", tempFile, e.getMessage());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

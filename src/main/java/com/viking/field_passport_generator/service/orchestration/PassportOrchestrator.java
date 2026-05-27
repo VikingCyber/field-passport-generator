@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Executors;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 
@@ -48,7 +48,22 @@ public class PassportOrchestrator {
     }
 
     public List<PassportSummary> getPassportSummaries() {
-        return cacheProvider.getPassportSummaries();
+        List<PassportSummary> summaries = cacheProvider.getPassportSummaries();
+        return summaries.stream()
+                .map(s -> {
+                    PassportKey key = new PassportKey(s.id(), s.year());
+                    if (generationTracker.isProcessing(key)) {
+                        return new PassportSummary(
+                                s.id(),
+                                s.fieldName(),
+                                s.cropName(),
+                                s.year(),
+                                s.area(),
+                                PassportStatus.PROCESSING.name()
+                        );
+                    }
+                    return s;
+                }).toList();
     }
 
     public void startMassGeneration(boolean force) {
@@ -81,15 +96,28 @@ public class PassportOrchestrator {
         }
         log.info("Начало массовой генерации. Всего задач: {}", passports.size());
 
-        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            for (FieldPassport passport : passports) {
-                executor.submit(() -> {
+        CountDownLatch latch = new CountDownLatch(passports.size());
+
+        for (FieldPassport passport : passports) {
+            Thread.startVirtualThread(() -> {
+                try {
                     processSinglePassport(passport, force);
-                    return null;
-                });
-            }
+                } finally {
+                    latch.countDown();
+                }
+            });
         }
-        log.info("Все задачи по генерации успешно завершены.");
+        Thread.startVirtualThread(() -> {
+            try {
+                latch.await();
+                log.info("✅ Все {} задач по генерации успешно завершены.", passports.size());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Ожидание завершения было прервано");
+            }
+        });
+
+        log.info("Все задачи массовой генерации ЗАПУЩЕНЫ. Всего задач: {}", passports.size());
     }
 
     public void startSingleGeneration(String fieldId, int year, boolean force) {
@@ -115,9 +143,9 @@ public class PassportOrchestrator {
         }
         boolean acquired = false;
         try {
+            generationTracker.lock(key);
             memoryGuard.acquire();
             acquired = true;
-            generationTracker.lock(key);
             log.debug("Обработка поля {}: Загрузка данных...", passport.generalInfo().fieldName());
             syncService.prepareSinglePassport(passport);
             log.debug("Обработка поля {}: Рендеринг PDF...", passport.generalInfo().fieldName());
