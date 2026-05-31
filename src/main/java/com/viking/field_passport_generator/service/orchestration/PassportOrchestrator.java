@@ -137,15 +137,21 @@ public class PassportOrchestrator {
 
     private void processSinglePassport(FieldPassport passport, boolean force) {
         PassportKey key = new PassportKey(passport.fieldId(), passport.generalInfo().year());
+
+        if (!generationTracker.tryLock(key)) {
+            log.info("Паспорт {} уже находится в процессе генерации, запрос пропущен.", passport.fieldId());
+            return;
+        }
+
         if (!force && pdfService.resolvePassportPath(passport).toFile().exists()) {
             log.info("Паспорт {} уже существует, генерация пропущена (force=false)", passport.fieldId());
             return;
         }
         boolean acquired = false;
         try {
-            generationTracker.lock(key);
             memoryGuard.acquire();
             acquired = true;
+            generationTracker.lock(key);
             log.debug("Обработка поля {}: Загрузка данных...", passport.generalInfo().fieldName());
             syncService.prepareSinglePassport(passport);
             log.debug("Обработка поля {}: Рендеринг PDF...", passport.generalInfo().fieldName());

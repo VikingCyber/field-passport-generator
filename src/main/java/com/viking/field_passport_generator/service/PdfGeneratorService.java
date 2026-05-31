@@ -27,6 +27,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class PdfGeneratorService implements PassportGeneratorService {
     private static final Logger log = LoggerFactory.getLogger(PdfGeneratorService.class);
+    private static final int MAX_DELETE_ATTEMPTS = 3;
+    private static final long DELETE_RETRY_DELAY_MS = 50;
     private final long minRequiredSpaceBytes;
     private final Path outputDir;
 
@@ -93,7 +95,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
         long sleepMs = 50;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
-                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
                 return;
             } catch (FileSystemException e) {
                 if (attempt == maxAttempts) {
@@ -110,18 +112,25 @@ public class PdfGeneratorService implements PassportGeneratorService {
     }
 
     private void cleanTempFile(Path tempFile) {
-        try {
-            int maxAttempts = 3;
-            for (int i = 0; i < maxAttempts; i++) {
+        int maxAttempts = MAX_DELETE_ATTEMPTS;
+        for (int i = 0; i < maxAttempts; i++) {
+            try {
                 if (Files.deleteIfExists(tempFile)) {
+                    return; // удалили
+                }
+                return; // файла нет – выходим сразу
+            } catch (IOException e) {
+                if (i == maxAttempts - 1) {
+                    log.warn("Не удалось удалить временный файл {}: {}", tempFile, e.getMessage());
                     return;
                 }
-                Thread.sleep(50);
+                try {
+                    Thread.sleep(DELETE_RETRY_DELAY_MS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
             }
-        } catch (IOException e) {
-            log.warn("Не удалось удалить временный файл {} (возможно, заблокирован ОС): {}", tempFile, e.getMessage());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
         }
     }
 

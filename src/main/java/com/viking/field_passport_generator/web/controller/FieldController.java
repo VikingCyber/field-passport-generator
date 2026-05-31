@@ -13,6 +13,8 @@ import java.util.Optional;
 import static io.javalin.apibuilder.ApiBuilder.*;
 
 public class FieldController implements EndpointGroup {
+    private static final String INVALID_YEAR_FORMAT = "Неверный формат года";
+    private static final String GENERATION_STARTED_TEMPLATE = "Generation started (force=%s)";
     private final PassportOrchestrator orchestrator;
 
     public FieldController(PassportOrchestrator orchestrator) {
@@ -44,7 +46,7 @@ public class FieldController implements EndpointGroup {
                     int year = ctx.pathParamAsClass("year", Integer.class).get();
                     boolean force = ctx.queryParamAsClass("force", Boolean.class).getOrDefault(true);
                     orchestrator.startSingleGeneration(id, year, force);
-                    ctx.status(202).result("Generation task accepted");
+                    ctx.status(202).result(String.format(GENERATION_STARTED_TEMPLATE, force));
                 });
             });
         });
@@ -53,7 +55,7 @@ public class FieldController implements EndpointGroup {
     private void getPassportsStatus(Context ctx) {
         String passportId = ctx.pathParam("id");
         int targetYear = ctx.pathParamAsClass("year", Integer.class)
-                .getOrThrow(value -> new BadRequestResponse("Неферный формат года"));
+                .getOrThrow(value -> new BadRequestResponse(INVALID_YEAR_FORMAT));
         PassportStatus status = orchestrator.getPassportStatus(passportId, targetYear);
         ctx.json(Map.of("status", status.name()));
     }

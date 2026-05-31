@@ -14,6 +14,17 @@ public class GenerationTracker {
     private final Map<PassportKey, Long> activeLocks = new ConcurrentHashMap<>();
     private static final long LOCK_TTL_MS = 600_000L;
 
+    public boolean tryLock(PassportKey key) {
+        long now = System.currentTimeMillis();
+        Long currentVal = activeLocks.compute(key, (k, v) -> {
+            if (v != null && (now - v <= LOCK_TTL_MS)) {
+                return v;
+            }
+            return now;
+        });
+        return currentVal == now;
+    }
+
     public void lock(PassportKey key) {
         activeLocks.put(key, System.currentTimeMillis());
         log.debug("Регистрация генерации: [{}] заблокирован", key);

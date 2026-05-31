@@ -62,18 +62,9 @@ public class InMemoryDataProvider implements DataProvider, WebDataProvider {
                 .toList();
     }
 
-    public void registerNewPassport(String fieldId, int year) {
-        List<FieldPassport> passports = getPassportsData();
-
-        passports.stream()
-                .filter(f -> f.fieldId().equals(fieldId) && f.generalInfo().year() == year)
-                .findFirst()
-                .ifPresent(field -> {
-                    Path pdfPath = buildPdfPath(field.generalInfo().fieldName(), year);
-
-                    existingPassportsCache.put(new PassportKey(fieldId, year), pdfPath);
-                    log.debug("Passport path cached reactively: [ID: {}, Year: {}]", fieldId, year);
-                });
+    public void registerNewPassport(FieldPassport fieldPassport) {
+        Path pdfPath = buildPdfPath(fieldPassport.generalInfo().fieldName(), fieldPassport.generalInfo().year());
+        existingPassportsCache.put(new PassportKey(fieldPassport.fieldId(), fieldPassport.generalInfo().year()), pdfPath);
     }
 
     public void removePassport(String fieldId, int year) {
