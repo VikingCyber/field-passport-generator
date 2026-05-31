@@ -5,7 +5,6 @@ import com.viking.field_passport_generator.data.aggregator.FieldDataAggregator;
 import com.viking.field_passport_generator.data.provider.DataProvider;
 import com.viking.field_passport_generator.data.provider.FileDataProvider;
 import com.viking.field_passport_generator.data.provider.InMemoryDataProvider;
-import com.viking.field_passport_generator.data.provider.WebDataProvider;
 import com.viking.field_passport_generator.http.InternalHttpClient;
 import com.viking.field_passport_generator.http.NoteImageLoader;
 import com.viking.field_passport_generator.http.SatelliteImageLoader;
@@ -22,7 +21,6 @@ public class AppContainer {
     private final DataProvider dataProvider;
     private final ImageSyncService syncService;
     private final PassportOrchestrator orchestrator;
-    private final PassportGeneratorService pdfService;
 
     public AppContainer(AppConfig config) {
         // ===== 1. Разворачиваем типизированные рекорды =====
@@ -71,15 +69,18 @@ public class AppContainer {
         this.dataProvider = cacheProvider;
 
         // ===== 6. PDF Generation =====
-        this.pdfService = new PdfGeneratorService(paths.minFreeSpaceBytes(), paths.outputDir());
+        PassportGeneratorService pdfService = new PdfGeneratorService(paths.minFreeSpaceBytes(), paths.outputDir());
+
+        GenerationTracker generationTracker = new GenerationTracker();
 
         // ===== 7. Orchestration =====
         this.orchestrator = new PassportOrchestrator(
                 this.syncService,
-                this.pdfService,
+                pdfService,
                 cacheProvider,
                 runtime.maxConcurrentTasks(),
-                (passport) -> cacheProvider.registerNewPassport(passport.fieldId(), passport.generalInfo().year())
+                cacheProvider::registerNewPassport,
+                generationTracker
         );
     }
 
@@ -153,9 +154,7 @@ public class AppContainer {
     }
 
     // ========== Getters ==========
-    public WebDataProvider getWebDataProvider() { return (WebDataProvider) dataProvider; }
     public DataProvider getDataProvider() { return dataProvider; }
     public ImageSyncService getSyncService() { return syncService; }
     public PassportOrchestrator getOrchestrator() { return orchestrator; }
-    public PassportGeneratorService getPdfService() { return pdfService; }
 }

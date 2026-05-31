@@ -1,15 +1,15 @@
 package com.viking.field_passport_generator.data.provider;
 
 import com.viking.field_passport_generator.model.FieldPassport;
+import com.viking.field_passport_generator.model.common.PassportKey;
+import com.viking.field_passport_generator.model.common.PassportStatus;
 import com.viking.field_passport_generator.web.dto.PassportSummary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class InMemoryDataProvider implements DataProvider, WebDataProvider {
@@ -18,29 +18,16 @@ public class InMemoryDataProvider implements DataProvider, WebDataProvider {
     private final String extension;
 
     private volatile List<FieldPassport> allPassports = new ArrayList<>();
-    private final Set<PassportKey> existingPassportsCache = ConcurrentHashMap.newKeySet();
-    public record PassportKey(String fieldId, int year) {}
+    private final Map<PassportKey, Path> existingPassportsCache = new ConcurrentHashMap<>();
 
     public InMemoryDataProvider(String outputDir, String extension) {
         this.outputDir = outputDir;
         this.extension = extension.startsWith(".") ? extension : "." + extension;
     }
 
-    private void refreshPassportCacheFromDisk() {
-        existingPassportsCache.clear();
-        for (FieldPassport field : allPassports) {
-            String fieldName = field.generalInfo().fieldName();
-            int year = field.generalInfo().year();
-            String saveFileName = fieldName.replaceAll("[^a-zA-Zа-яА-Я0-9]", "_") +
-                    "_" + year + extension;
-            Path pdfPath = Path.of(outputDir, saveFileName);
-            if (Files.exists(pdfPath)) {
-                existingPassportsCache.add(new PassportKey(field.fieldId(), field.generalInfo().year()));
-            }
-        }
-        log.info("Passport RAM cache synchronized. Found {} verified files on disk.", existingPassportsCache.size());
+    public Optional<Path> findPassportPath(String fieldId, int year) {
+        return Optional.ofNullable(existingPassportsCache.get(new PassportKey(fieldId, year)));
     }
-
 
     public synchronized void refreshFromFiles(FileDataProvider fileLoader) {
         this.allPassports = fileLoader.getPassportsData();
@@ -60,29 +47,46 @@ public class InMemoryDataProvider implements DataProvider, WebDataProvider {
                 .map(field -> {
                     String fieldId = field.fieldId();
                     int year = field.generalInfo().year();
-                    boolean exists = existingPassportsCache.contains(new PassportKey(fieldId, year));
+                    boolean fileExists = existingPassportsCache.containsKey(new PassportKey(fieldId, year));
+                    PassportStatus baseStatus = fileExists ? PassportStatus.READY : PassportStatus.NOT_FOUND;
 
                     return new PassportSummary(
                             field.fieldId(),
                             field.generalInfo().fieldName(),
                             field.generalInfo().rotation().crop(),
-                            field.generalInfo().year(),
+                            year,
                             field.generalInfo().fieldArea(),
-                            exists
+                            baseStatus.name()
                     );
                 })
                 .toList();
     }
 
-    public void registerNewPassport(String fieldId, int year) {
-        if (existingPassportsCache.add(new PassportKey(fieldId, year))) {
-            log.debug("Passport cache updated reactively: added [ID: {}, Year: {}]", fieldId, year);
-        }
+    public void registerNewPassport(FieldPassport fieldPassport) {
+        Path pdfPath = buildPdfPath(fieldPassport.generalInfo().fieldName(), fieldPassport.generalInfo().year());
+        existingPassportsCache.put(new PassportKey(fieldPassport.fieldId(), fieldPassport.generalInfo().year()), pdfPath);
     }
 
     public void removePassport(String fieldId, int year) {
-        if (existingPassportsCache.remove(new PassportKey(fieldId, year))) {
+        if (existingPassportsCache.remove(new PassportKey(fieldId, year)) != null) {
             log.debug("Passport cache updated reactively: removed [ID: {}, Year: {}]", fieldId, year);
         }
+    }
+
+    private void refreshPassportCacheFromDisk() {
+        existingPassportsCache.clear();
+        for (FieldPassport field : allPassports) {
+            Path pdfPath = buildPdfPath(field.generalInfo().fieldName(), field.generalInfo().year());
+            if (Files.exists(pdfPath)) {
+                existingPassportsCache.put(new PassportKey(field.fieldId(), field.generalInfo().year()), pdfPath);
+            }
+        }
+        log.info("Passport RAM cache synchronized. Found {} verified files on disk.", existingPassportsCache.size());
+    }
+
+    private Path buildPdfPath(String fieldName, int year) {
+        String saveFileName = fieldName.replaceAll("[^a-zA-Zа-яА-Я0-9]", "_") +
+                "_" + year + extension;
+        return Path.of(outputDir, saveFileName);
     }
 }

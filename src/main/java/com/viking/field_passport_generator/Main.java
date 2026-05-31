@@ -65,7 +65,11 @@ public class Main {
 
             try {
                 switch (choice) {
-                    case "1" -> generateAll(provider, orchestrator);
+                    case "1" -> {
+                        System.out.print("Запустить принудительную перегенерацию (y/n)? ");
+                        boolean force = scanner.nextLine().equalsIgnoreCase("y");
+                        generateAll(provider, orchestrator, force);
+                    }
                     case "2" -> generateOne(provider, orchestrator);
                     case "0" -> {
                         log.info("Завершение работы...");
@@ -89,15 +93,18 @@ public class Main {
         System.out.print("\nВыберите опцию: ");
     }
 
-    private static void generateAll(DataProvider provider, PassportOrchestrator orchestrator) {
+    private static void generateAll(DataProvider provider, PassportOrchestrator orchestrator, boolean force) {
         log.info("Загрузка данных для массовой генерации...");
         List<FieldPassport> all = provider.getPassportsData();
-        orchestrator.processMassGeneration(all);
+        orchestrator.processMassGeneration(all, force);
     }
 
     private static void generateOne(DataProvider provider, PassportOrchestrator orchestrator) {
         System.out.print("Введите точное название поля (например, ТК02-02): ");
         String target = scanner.nextLine().trim();
+
+        System.out.print("Принудительно перегенерировать (y/n)? ");
+        boolean force = scanner.nextLine().equalsIgnoreCase("y");
 
         // Фильтруем все сезоны для этого конкретного поля
         List<FieldPassport> selected = provider.getPassportsData().stream()
@@ -108,7 +115,7 @@ public class Main {
             System.out.println("❌ Поле '" + target + "' не найдено в базе данных.");
         } else {
             log.info("Найдено сезонов для поля {}: {}. Начинаю генерацию...", target, selected.size());
-            orchestrator.processMassGeneration(selected);
+            orchestrator.processMassGeneration(selected, force);
             System.out.println("✅ Паспорта для поля " + target + " успешно созданы.");
         }
     }

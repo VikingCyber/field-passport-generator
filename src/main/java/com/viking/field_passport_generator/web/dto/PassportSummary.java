@@ -6,6 +6,6 @@ public record PassportSummary(
         String cropName,
         int year,
         double area,
-        boolean isPdfExists
+        String status
 ) {
 }

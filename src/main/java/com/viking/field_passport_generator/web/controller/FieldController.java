@@ -1,25 +1,20 @@
 package com.viking.field_passport_generator.web.controller;
 
-import com.viking.field_passport_generator.config.AppContainer;
-import com.viking.field_passport_generator.data.provider.InMemoryDataProvider;
-import com.viking.field_passport_generator.model.FieldPassport;
-import com.viking.field_passport_generator.service.PassportGeneratorService;
+import com.viking.field_passport_generator.model.common.PassportStatus;
 import com.viking.field_passport_generator.service.orchestration.PassportOrchestrator;
 import io.javalin.apibuilder.EndpointGroup;
 import io.javalin.http.BadRequestResponse;
 import io.javalin.http.Context;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Optional;
 
 import static io.javalin.apibuilder.ApiBuilder.*;
 
 public class FieldController implements EndpointGroup {
-    private static final Logger log = LoggerFactory.getLogger(FieldController.class);
+    private static final String INVALID_YEAR_FORMAT = "Неверный формат года";
+    private static final String GENERATION_STARTED_TEMPLATE = "Generation started (force=%s)";
     private final PassportOrchestrator orchestrator;
 
     public FieldController(PassportOrchestrator orchestrator) {
@@ -36,12 +31,33 @@ public class FieldController implements EndpointGroup {
 
             // POST /api/passports/generate
             post("generate", ctx -> {
-                orchestrator.startMassGeneration();
-                ctx.status(202).result("Generation started");
+                boolean force = ctx.queryParamAsClass("force", Boolean.class).getOrDefault(false);
+                orchestrator.startMassGeneration(force);
+                ctx.status(202).result("Generation started force" + force + ")");
             });
 
-            path("{id}/{year}/pdf", () -> get(this::streamPassportPdf));
+            path("{id}/{year}", () -> {
+                get("status", this::getPassportsStatus);
+
+                get("pdf", this::streamPassportPdf);
+
+                post("generate", ctx -> {
+                    String id = ctx.pathParam("id");
+                    int year = ctx.pathParamAsClass("year", Integer.class).get();
+                    boolean force = ctx.queryParamAsClass("force", Boolean.class).getOrDefault(true);
+                    orchestrator.startSingleGeneration(id, year, force);
+                    ctx.status(202).result(String.format(GENERATION_STARTED_TEMPLATE, force));
+                });
+            });
         });
+    }
+
+    private void getPassportsStatus(Context ctx) {
+        String passportId = ctx.pathParam("id");
+        int targetYear = ctx.pathParamAsClass("year", Integer.class)
+                .getOrThrow(value -> new BadRequestResponse(INVALID_YEAR_FORMAT));
+        PassportStatus status = orchestrator.getPassportStatus(passportId, targetYear);
+        ctx.json(Map.of("status", status.name()));
     }
 
     private void streamPassportPdf(Context ctx) throws Exception {
