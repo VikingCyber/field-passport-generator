@@ -28,6 +28,7 @@ public class AppConfig {
     private AgroApiConfig cachedAgroApi;
     private AgroPerformanceConfig cachedAgroPerf;
     private SatelliteConfig cachedSatellite;
+    private AgroSyncConfig cachedAgroSync;
 
     public AppConfig() {
         this("application.yml");
@@ -132,7 +133,11 @@ public class AppConfig {
                     getLong(ConfigKeys.Agro.Api.MIN_DOWNLOAD_SIZE_BYTES, 1024),
                     getLong(ConfigKeys.Agro.Api.RECOVERY_TIME_MS, 60000),
                     getString(ConfigKeys.Agro.Api.Endpoints.ATTACHMENTS_INFO, "storage/files"),
-                    getString(ConfigKeys.Agro.Api.Endpoints.SPECTRAL_INDICES, "spectralIndices")
+                    getString(ConfigKeys.Agro.Api.Endpoints.SPECTRAL_INDICES, "spectralIndices"),
+                    getString(ConfigKeys.Agro.Api.Endpoints.FIELD_REPORT, "data/reportData"),
+                    getString(ConfigKeys.Agro.Api.Endpoints.TMC, "goods"),
+                    getString(ConfigKeys.Agro.Api.Endpoints.UNITS, "units"),
+                    getString(ConfigKeys.Agro.Api.Endpoints.NOTES, "notes")
             );
         }
         return cachedAgroApi;
@@ -161,6 +166,16 @@ public class AppConfig {
             );
         }
         return cachedSatellite;
+    }
+
+    public AgroSyncConfig getAgroSyncConfig() {
+        if (cachedAgroSync == null) {
+            cachedAgroSync = new AgroSyncConfig(
+                    getString(ConfigKeys.Agro.Sync.FROM_DATE, "2023-01-01T00:00:00Z"),
+                    getString(ConfigKeys.Agro.Sync.TO_DATE, "2027-01-01T00:00:00Z")
+            );
+        }
+        return cachedAgroSync;
     }
 
     public String getString(String key) {

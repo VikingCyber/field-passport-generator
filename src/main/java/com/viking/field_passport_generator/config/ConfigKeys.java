@@ -69,7 +69,16 @@ public final class ConfigKeys {
             public static final class Endpoints {
                 public static final String ATTACHMENTS_INFO = "agro.api.endpoints.attachments-info";
                 public static final String SPECTRAL_INDICES = "agro.api.endpoints.spectral-indices";
+                public static final String FIELD_REPORT = "agro.api.endpoints.field-report";
+                public static final String TMC = "agro.api.endpoint.tmc";
+                public static final String UNITS = "agro.api.endpoint.units";
+                public static final String NOTES = "agro.api.endpoint.notes";
             }
+        }
+
+        public static final class Sync {
+            public static final String FROM_DATE = "agro.sync.from-date";
+            public static final String TO_DATE = "agro.sync.to-date";
         }
 
         public static final class Notes {

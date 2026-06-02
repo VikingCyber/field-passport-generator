@@ -7,5 +7,9 @@ public record AgroApiConfig(
         long minDownloadSizeBytes,
         long recoveryTimeMs,
         String attachmentsEndpoint,
-        String spectralIndicesEndpoint
+        String spectralIndicesEndpoint,
+        String fieldReportEndpoint,
+        String tmcEndpoint,
+        String unitsEndpoint,
+        String notesEndpoint
 ) {}

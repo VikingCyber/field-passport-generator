@@ -5,7 +5,7 @@ import com.viking.field_passport_generator.model.FieldPassport;
 import com.viking.field_passport_generator.model.common.PassportKey;
 import com.viking.field_passport_generator.model.common.PassportStatus;
 import com.viking.field_passport_generator.service.GenerationTracker;
-import com.viking.field_passport_generator.service.ImageSyncService;
+import com.viking.field_passport_generator.service.SyncService;
 import com.viking.field_passport_generator.service.PassportGeneratorService;
 import com.viking.field_passport_generator.web.dto.PassportSummary;
 import org.slf4j.Logger;
@@ -21,7 +21,7 @@ import java.util.function.Consumer;
 public class PassportOrchestrator {
     private static final Logger log = LoggerFactory.getLogger(PassportOrchestrator.class);
 
-    private final ImageSyncService syncService;
+    private final SyncService syncService;
     private final PassportGeneratorService pdfService;
     private final InMemoryDataProvider cacheProvider;
     private final Semaphore memoryGuard;
@@ -29,7 +29,7 @@ public class PassportOrchestrator {
     private final GenerationTracker generationTracker;
 
 
-    public PassportOrchestrator(ImageSyncService syncService, PassportGeneratorService pdfService,
+    public PassportOrchestrator(SyncService syncService, PassportGeneratorService pdfService,
                                 InMemoryDataProvider cacheProvider, int maxConcurrentTasks,
                                 Consumer<FieldPassport> onPassportGenerated, GenerationTracker generationTracker) {
         this.syncService = syncService;
@@ -38,6 +38,11 @@ public class PassportOrchestrator {
         this.memoryGuard = new Semaphore(maxConcurrentTasks);
         this.onPassportGenerated = onPassportGenerated;
         this.generationTracker = generationTracker;
+    }
+
+    public void syncAllEcosystemData() throws Exception {
+        log.info("Оркестратор получил запрос на синхронизацию, делегирую задачу в AgroDataSyncService...");
+        syncService.syncAndRefreshEcosystem();
     }
 
     public PassportStatus getPassportStatus(String fieldId, int year) {
@@ -102,6 +107,8 @@ public class PassportOrchestrator {
             Thread.startVirtualThread(() -> {
                 try {
                     processSinglePassport(passport, force);
+                } catch (Exception e) {
+                    log.error("Ошибка при генерации паспорта {}: {}", passport.fieldId(), e.getMessage());
                 } finally {
                     latch.countDown();
                 }

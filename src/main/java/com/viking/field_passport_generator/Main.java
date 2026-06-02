@@ -41,7 +41,7 @@ public class Main {
         LocalFilesConfig filesConfig = appConfig.getLocalFilesConfig();
         String notesPath = String.valueOf(filesConfig.notesPath());
         String filePath;
-        container.getSyncService().warmUpAll("data/notesData.json", "data/fieldData.json");
+        container.getSyncService().warmUpAll(filesConfig.notesPath(), filesConfig.fieldDataPath());
 
         AppRuntimeConfig runtimeConfig = appConfig.getAppRuntimeConfig();
         if ("web".equalsIgnoreCase(runtimeConfig.mode())) {

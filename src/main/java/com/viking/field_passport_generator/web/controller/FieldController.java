@@ -29,6 +29,11 @@ public class FieldController implements EndpointGroup {
             // GET /api/passports
             get(ctx -> ctx.json(orchestrator.getPassportSummaries()));
 
+            post("sync", ctx -> {
+                orchestrator.syncAllEcosystemData();
+                ctx.status(200).result("Данные успешно обновлены в рантайме");
+            });
+
             // POST /api/passports/generate
             post("generate", ctx -> {
                 boolean force = ctx.queryParamAsClass("force", Boolean.class).getOrDefault(false);

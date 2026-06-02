@@ -59,7 +59,6 @@ public class SatelliteImageLoader {
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uri)
-                .header("Content-Type", "application/json")
                 .header("User-Agent", userAgent)
                 .timeout(Duration.ofSeconds(20))
                 .GET()

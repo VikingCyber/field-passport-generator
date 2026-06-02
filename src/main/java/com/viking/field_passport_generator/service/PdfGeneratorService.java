@@ -7,6 +7,7 @@ import com.viking.field_passport_generator.model.media.NoteImage;
 import com.viking.field_passport_generator.model.tables.NoteTableRow;
 import com.viking.field_passport_generator.model.tables.OperationTableRow;
 import com.viking.field_passport_generator.model.tables.TechJournalTableRow;
+import com.viking.field_passport_generator.util.FileUtils;
 import com.viking.field_passport_generator.util.NoteImageComparators;
 import com.viking.field_passport_generator.util.PdfUIHelper;
 import org.openpdf.text.Document;
@@ -27,8 +28,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class PdfGeneratorService implements PassportGeneratorService {
     private static final Logger log = LoggerFactory.getLogger(PdfGeneratorService.class);
-    private static final int MAX_DELETE_ATTEMPTS = 3;
-    private static final long DELETE_RETRY_DELAY_MS = 50;
+//    private static final int MAX_DELETE_ATTEMPTS = 3;
+//    private static final long DELETE_RETRY_DELAY_MS = 50;
     private final long minRequiredSpaceBytes;
     private final Path outputDir;
 
@@ -74,7 +75,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
             throw new RuntimeException("Ошибка файловой системы", e);
         }
         try {
-            safeAtomicMove(tempPath, filePath);
+            FileUtils.atomicMoveWithRetries(tempPath, filePath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             isMovedSuccessfully = true;
             log.info("==> Документ успешно зафиксирован на диске: {}", filePath.toAbsolutePath());
         } catch (IOException e) {
@@ -84,55 +85,55 @@ public class PdfGeneratorService implements PassportGeneratorService {
             // 3. Защитник на своем месте
             if (!isMovedSuccessfully) {
                 log.warn("Генерация сорвалась или прервана. Подчищаем временный файл: {}", tempPath.getFileName());
-                cleanTempFile(tempPath);
+                FileUtils.deleteWithRetries(tempPath);
             }
         }
         log.info("==> Генерация завершена. Путь: {}", filePath.toAbsolutePath());
     }
 
-    private void safeAtomicMove(Path source, Path target) throws IOException {
-        int maxAttempts = 5;
-        long sleepMs = 50;
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            try {
-                Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-                return;
-            } catch (FileSystemException e) {
-                if (attempt == maxAttempts) {
-                    throw new IOException("Не удалось выполнить атомарную подмену файла после " + maxAttempts + " попыток", e);
-                }
-                try {
-                    Thread.sleep(sleepMs * attempt);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new IOException("Перенос файла прерван", ie);
-                }
-            }
-        }
-    }
+//    private void safeAtomicMove(Path source, Path target) throws IOException {
+//        int maxAttempts = 5;
+//        long sleepMs = 50;
+//        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+//            try {
+//                Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+//                return;
+//            } catch (FileSystemException e) {
+//                if (attempt == maxAttempts) {
+//                    throw new IOException("Не удалось выполнить атомарную подмену файла после " + maxAttempts + " попыток", e);
+//                }
+//                try {
+//                    Thread.sleep(sleepMs * attempt);
+//                } catch (InterruptedException ie) {
+//                    Thread.currentThread().interrupt();
+//                    throw new IOException("Перенос файла прерван", ie);
+//                }
+//            }
+//        }
+//    }
 
-    private void cleanTempFile(Path tempFile) {
-        int maxAttempts = MAX_DELETE_ATTEMPTS;
-        for (int i = 0; i < maxAttempts; i++) {
-            try {
-                if (Files.deleteIfExists(tempFile)) {
-                    return; // удалили
-                }
-                return; // файла нет – выходим сразу
-            } catch (IOException e) {
-                if (i == maxAttempts - 1) {
-                    log.warn("Не удалось удалить временный файл {}: {}", tempFile, e.getMessage());
-                    return;
-                }
-                try {
-                    Thread.sleep(DELETE_RETRY_DELAY_MS);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-            }
-        }
-    }
+//    private void cleanTempFile(Path tempFile) {
+//        int maxAttempts = MAX_DELETE_ATTEMPTS;
+//        for (int i = 0; i < maxAttempts; i++) {
+//            try {
+//                if (Files.deleteIfExists(tempFile)) {
+//                    return; // удалили
+//                }
+//                return; // файла нет – выходим сразу
+//            } catch (IOException e) {
+//                if (i == maxAttempts - 1) {
+//                    log.warn("Не удалось удалить временный файл {}: {}", tempFile, e.getMessage());
+//                    return;
+//                }
+//                try {
+//                    Thread.sleep(DELETE_RETRY_DELAY_MS);
+//                } catch (InterruptedException ie) {
+//                    Thread.currentThread().interrupt();
+//                    return;
+//                }
+//            }
+//        }
+//    }
 
     private void checkStorageSafety(Path outputDir) {
         try {

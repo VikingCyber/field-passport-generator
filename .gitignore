@@ -35,6 +35,7 @@ build/
 
 ### Custom ###
 output/
+logs/archived
 src/main/resources/data/
 src/main/resources/application.yml
 src/main/resources/ids_for_payload.json

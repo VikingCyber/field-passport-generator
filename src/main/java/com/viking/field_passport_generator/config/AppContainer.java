@@ -19,7 +19,7 @@ import java.util.List;
 
 public class AppContainer {
     private final DataProvider dataProvider;
-    private final ImageSyncService syncService;
+    private final SyncService syncService;
     private final PassportOrchestrator orchestrator;
 
     public AppContainer(AppConfig config) {
@@ -27,35 +27,37 @@ public class AppContainer {
         LocalFilesConfig filesConfig = config.getLocalFilesConfig();
         AppRuntimeConfig runtime = config.getAppRuntimeConfig();
         StoragePathsConfig paths = config.getStoragePathsConfig();
-        AgroApiConfig agro = config.getAgroApiConfig();
+        AgroApiConfig agroApiConfig = config.getAgroApiConfig();
         AgroPerformanceConfig perf = config.getAgroPerformanceConfig();
         SatelliteConfig satellite = config.getSatelliteConfig();
+        AgroSyncConfig syncConfig = config.getAgroSyncConfig();
 
         JsonDataParser jsonParser = new JsonDataParser();
 
         // ===== 2. HTTP Clients =====
         InternalHttpClient noteClient = new InternalHttpClient(
                 perf.notesMaxConcurrent(),
-                agro.recoveryTimeMs(),
-                agro.minDownloadSizeBytes()
+                agroApiConfig.recoveryTimeMs(),
+                agroApiConfig.minDownloadSizeBytes()
         );
         InternalHttpClient satelliteClient = new InternalHttpClient(
                 perf.satelliteMaxConcurrent(),
-                agro.recoveryTimeMs(),
-                agro.minDownloadSizeBytes()
+                agroApiConfig.recoveryTimeMs(),
+                agroApiConfig.minDownloadSizeBytes()
+        );
+
+        InternalHttpClient metaClient = new InternalHttpClient(
+                perf.satelliteMaxConcurrent(),
+                agroApiConfig.recoveryTimeMs(),
+                agroApiConfig.minDownloadSizeBytes()
         );
 
         // ===== 3. Image Loading Strategies =====
-        NoteStrategy noteStrategy = createNoteStrategy(paths, agro, noteClient);
-        SatelliteStrategy satelliteStrategy = createSatelliteStrategy(paths, agro, satellite, satelliteClient, jsonParser);
+        NoteStrategy noteStrategy = createNoteStrategy(paths, agroApiConfig, noteClient);
+        SatelliteStrategy satelliteStrategy = createSatelliteStrategy(paths, agroApiConfig, satellite, satelliteClient, jsonParser);
         ChartStrategy chartStrategy = createChartStrategy(paths, satellite, jsonParser, runtime);
 
-        // ===== 4. Cache & Sync =====
-        ImageCacheService imageCache = new ImageCacheService(
-                paths.cacheBaseDir(),
-                List.of(noteStrategy, satelliteStrategy, chartStrategy)
-        );
-        this.syncService = new ImageSyncService(imageCache, jsonParser);
+
 
         // ===== 5. Data Aggregation & Provider =====
         FieldDataAggregator aggregator = createAggregator(runtime, satellite);
@@ -73,6 +75,27 @@ public class AppContainer {
 
         GenerationTracker generationTracker = new GenerationTracker();
 
+        AgroMetadataSyncService apiSyncService = new AgroMetadataSyncService(
+                metaClient,
+                agroApiConfig,
+                syncConfig,
+                filesConfig
+        );
+
+        ImageCacheService imageCache = new ImageCacheService(
+                paths.cacheBaseDir(),
+                List.of(noteStrategy, satelliteStrategy, chartStrategy)
+        );
+
+        this.syncService = new SyncService(
+                imageCache,
+                jsonParser,
+                apiSyncService,
+                cacheProvider,
+                fileDataProvider,
+                filesConfig
+        );
+
         // ===== 7. Orchestration =====
         this.orchestrator = new PassportOrchestrator(
                 this.syncService,
@@ -82,6 +105,9 @@ public class AppContainer {
                 cacheProvider::registerNewPassport,
                 generationTracker
         );
+
+
+
     }
 
     // ========== Приватные методы сборки стратегий ==========
@@ -155,6 +181,6 @@ public class AppContainer {
 
     // ========== Getters ==========
     public DataProvider getDataProvider() { return dataProvider; }
-    public ImageSyncService getSyncService() { return syncService; }
+    public SyncService getSyncService() { return syncService; }
     public PassportOrchestrator getOrchestrator() { return orchestrator; }
 }
