@@ -16,7 +16,10 @@ import java.nio.file.Path;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.ZoneId;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class AppConfig {
     private static final Logger log = LoggerFactory.getLogger(AppConfig.class);
@@ -172,7 +175,8 @@ public class AppConfig {
         if (cachedAgroSync == null) {
             cachedAgroSync = new AgroSyncConfig(
                     getString(ConfigKeys.Agro.Sync.FROM_DATE, "2023-01-01T00:00:00Z"),
-                    getString(ConfigKeys.Agro.Sync.TO_DATE, "2027-01-01T00:00:00Z")
+                    getString(ConfigKeys.Agro.Sync.TO_DATE, "2027-01-01T00:00:00Z"),
+                    getLong(ConfigKeys.Agro.Sync.COMPANY_ID, 390557L)
             );
         }
         return cachedAgroSync;

@@ -110,7 +110,7 @@ public class AgroMetadataSyncService {
                             "unitOperationsReport",
                             currentFrom,
                             currentTo,
-                            390557L,
+                            syncConfig.companyId(),
                             List.of(), List.of(),
                             new UnitOperationsRequest.Filters(List.of()),
                             25000, // Лимит на один месяц

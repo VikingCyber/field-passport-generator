@@ -79,6 +79,7 @@ public final class ConfigKeys {
         public static final class Sync {
             public static final String FROM_DATE = "agro.sync.from-date";
             public static final String TO_DATE = "agro.sync.to-date";
+            public static final String COMPANY_ID = "agro.sync.companyId";
         }
 
         public static final class Notes {
