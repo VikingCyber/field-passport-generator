@@ -179,7 +179,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.6.3</version>
                 <configuration>
-                    <mainClass>com.viking.field_passport_generator.Main</mainClass>
+                    <mainClass>com.viking.generator.Main</mainClass>
                 </configuration>
             </plugin>
 

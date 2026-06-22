@@ -15,7 +15,12 @@ target/
 .sts4-cache
 
 ### IntelliJ IDEA ###
-.idea
+.idea/*
+!.idea/codeStyles/
+!.idea/checkstyle-google.xml
+!.idea/checkstyle-idea.xml
+!.idea/compiler.xml
+!.idea/misc.xml
 *.iws
 *.iml
 *.ipr
@@ -35,7 +40,9 @@ build/
 
 ### Custom ###
 output/
-logs/archived
+logs/*
+!logs/.gitkeep
+
 src/main/resources/data/
 src/main/resources/application.yml
 src/main/resources/ids_for_payload.json
