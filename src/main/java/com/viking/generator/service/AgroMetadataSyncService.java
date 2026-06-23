@@ -1,6 +1,7 @@
 package com.viking.generator.service;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonGenerator.Feature;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -241,14 +242,19 @@ public class AgroMetadataSyncService {
             List<FilePair> moveList) throws IOException {
         Path tempFile = targetPath.resolveSibling(targetPath.getFileName() + ".tmp");
         log.debug("Скачивание трансляцией в файл: {}", tempFile.getFileName());
-        HttpResponse<Path> response = httpClient.sendRequest(request,
-                HttpResponse.BodyHandlers.ofFile(tempFile));
-        if (response == null || response.statusCode() != 200) {
+        try {
+            HttpResponse<Path> response = httpClient.sendRequest(request,
+                    HttpResponse.BodyHandlers.ofFile(tempFile));
+            if (response == null || response.statusCode() != 200) {
+                FileUtils.deleteWithRetries(tempFile);
+                throw new IOException(
+                        "Запрос к " + request.uri() + " вернул ошибку или Circuit Breaker открыт");
+            }
+            moveList.add(new FilePair(tempFile, targetPath));
+        } catch (Exception e) {
             FileUtils.deleteWithRetries(tempFile);
-            throw new IOException(
-                    "Запрос к " + request.uri() + " вернул ошибку или Circuit Breaker открыт");
+            throw e;
         }
-        moveList.add(new FilePair(tempFile, targetPath));
     }
 
     /**
@@ -394,25 +400,29 @@ public class AgroMetadataSyncService {
      */
     boolean parseAndWriteChunkStream(Path chunkFile, Writer writer, boolean isFirstDataAdded)
             throws IOException {
-        try (JsonParser parser = objectMapper.getFactory().createParser(chunkFile.toFile());
-                JsonGenerator generator = objectMapper.getFactory().createGenerator(writer)) {
-            while (parser.nextToken() != null && parser.currentToken() != JsonToken.END_OBJECT) {
-                if ("data".equals(parser.currentName())) {
-                    parser.nextToken();
-                    if (parser.isExpectedStartArrayToken()) {
-                        while (parser.nextToken() != JsonToken.END_ARRAY) {
-                            if (isFirstDataAdded) {
-                                generator.flush();
-                                writer.write(",");
+        try (JsonParser parser = objectMapper.getFactory().createParser(chunkFile.toFile())) {
+            JsonGenerator generator = objectMapper.getFactory().createGenerator(writer);
+            generator.disable(Feature.AUTO_CLOSE_TARGET);
+            try (generator) {
+                while (parser.nextToken() != null && parser.currentToken()
+                        != JsonToken.END_OBJECT) {
+                    if ("data".equals(parser.currentName())) {
+                        parser.nextToken();
+                        if (parser.isExpectedStartArrayToken()) {
+                            while (parser.nextToken() != JsonToken.END_ARRAY) {
+                                if (isFirstDataAdded) {
+                                    generator.flush();
+                                    writer.write(",");
+                                }
+                                generator.copyCurrentStructure(parser);
+                                isFirstDataAdded = true;
                             }
-                            generator.copyCurrentStructure(parser);
-                            isFirstDataAdded = true;
                         }
+                        break;
                     }
-                    break;
                 }
+                generator.flush();
             }
-            generator.flush();
         }
         return isFirstDataAdded;
     }
