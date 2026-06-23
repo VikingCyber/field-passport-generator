@@ -19,6 +19,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -85,7 +86,8 @@ public class AgroMetadataSyncService {
             log.info("Все данные успешно скачаны во временные файлы. "
                     + "Применение изменений (Atomic Move)...");
             for (FilePair pair : atomicMoveList) {
-                FileUtils.atomicMoveWithRetries(pair.temp(), pair.target());
+                FileUtils.atomicMoveWithRetries(pair.temp(), pair.target(),
+                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             }
             log.info("✅ Синхронизация метаданных успешно завершена!");
         } catch (Exception e) {
