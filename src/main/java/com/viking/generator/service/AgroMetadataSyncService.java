@@ -22,6 +22,8 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +40,8 @@ import org.slf4j.LoggerFactory;
 public class AgroMetadataSyncService {
 
     private static final Logger log = LoggerFactory.getLogger(AgroMetadataSyncService.class);
+    private static final DateTimeFormatter API_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC);
     private final InternalHttpClient httpClient;
     private final AgroApiConfig apiConfig;
     private final AgroSyncConfig syncConfig;
@@ -271,8 +275,8 @@ public class AgroMetadataSyncService {
                 moveList);
         log.info("Скачивание заметок агрономов (/notes)...");
         Map<String, String> notesParam = Map.of(
-                "from", syncConfig.fromDate().toString(),
-                "to", syncConfig.toDate().toString()
+                "from", API_FORMATTER.format(syncConfig.fromDate()),
+                "to", API_FORMATTER.format(syncConfig.toDate())
         );
         downloadGet(apiConfig.notesEndpoint(), notesParam, localConfig.notesPath(), moveList);
     }
@@ -286,12 +290,12 @@ public class AgroMetadataSyncService {
     private void syncCropRotation(List<FilePair> moveList) throws IOException {
         log.info("Формирование POST-запроса для отчета севооборота (cropRotation)...");
         CropRotationRequest requestBody = new CropRotationRequest(
-                syncConfig.fromDate().toString(),
-                syncConfig.toDate().toString(),
+                API_FORMATTER.format(syncConfig.toDate()),
+                API_FORMATTER.format(syncConfig.fromDate()),
                 List.of(), List.of(),
                 new CropRotationRequest.Filters(List.of(), List.of(), List.of(), List.of()),
                 25, 1, 0,
-                "cropRotation", "Monitor", -420
+                "cropRotation", "Monitor", syncConfig.timezoneOffsetMinutes()
         );
         String cropJson = objectMapper.writeValueAsString(requestBody);
         downloadPost(apiConfig.fieldReportEndpoint(), Map.of(), cropJson,
@@ -356,8 +360,10 @@ public class AgroMetadataSyncService {
                 ? syncConfig.toDate().atZone(syncConfig.timezone()).toLocalDateTime()
                 : currentMonthEnd.atTime(23, 59, 59);
 
-        String currentFrom = fromDateTime.atZone(syncConfig.timezone()).toInstant().toString();
-        String currentTo = toDateTime.atZone(syncConfig.timezone()).toInstant().toString();
+        String currentFrom = API_FORMATTER.format(
+                fromDateTime.atZone(syncConfig.timezone()).toInstant());
+        String currentTo = API_FORMATTER.format(
+                toDateTime.atZone(syncConfig.timezone()).toInstant());
 
         log.info("==> Запрашиваю порцию операций техники за период: {} - {}", currentFrom,
                 currentTo);
@@ -400,7 +406,8 @@ public class AgroMetadataSyncService {
      */
     boolean parseAndWriteChunkStream(Path chunkFile, Writer writer, boolean isFirstDataAdded)
             throws IOException {
-        try (JsonParser parser = objectMapper.getFactory().createParser(chunkFile.toFile())) {
+        try (JsonParser parser = objectMapper.getFactory()
+                .createParser(Files.newInputStream(chunkFile))) {
             JsonGenerator generator = objectMapper.getFactory().createGenerator(writer);
             generator.disable(Feature.AUTO_CLOSE_TARGET);
             try (generator) {

@@ -73,7 +73,7 @@ public class SyncService {
      *
      * @throws Exception if any synchronization step fails.
      */
-    public void syncAndRefreshEcosystem() throws Exception {
+    public synchronized void syncAndRefreshEcosystem() throws Exception {
         log.info("=== НАЧАЛО ГЛОБАЛЬНОЙ СИНХРОНИЗАЦИИ ЭКОСИСТЕМЫ ===");
 
         // 1. Скачиваем свежие JSON-ы из Агросигнала на диск

@@ -1,15 +1,32 @@
 package com.viking.generator.service;
 
-import com.viking.generator.model.*;
+import com.viking.generator.model.FieldPassport;
 import com.viking.generator.model.media.ChartImage;
-import com.viking.generator.model.media.SatelliteImage;
 import com.viking.generator.model.media.NoteImage;
+import com.viking.generator.model.media.SatelliteImage;
 import com.viking.generator.model.tables.NoteTableRow;
 import com.viking.generator.model.tables.OperationTableRow;
 import com.viking.generator.model.tables.TechJournalTableRow;
 import com.viking.generator.util.FileUtils;
 import com.viking.generator.util.NoteImageComparators;
 import com.viking.generator.util.PdfUIHelper;
+import java.io.BufferedOutputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.FileStore;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.openpdf.text.Document;
 import org.openpdf.text.DocumentException;
 import org.openpdf.text.PageSize;
@@ -18,15 +35,9 @@ import org.openpdf.text.pdf.PdfWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedOutputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.nio.file.*;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class PdfGeneratorService implements PassportGeneratorService {
+
     private static final Logger log = LoggerFactory.getLogger(PdfGeneratorService.class);
     private final long minRequiredSpaceBytes;
     private final Path outputDir;
@@ -40,9 +51,11 @@ public class PdfGeneratorService implements PassportGeneratorService {
     @Override
     public void generate(FieldPassport passport) {
         Path filePath = resolvePassportPath(passport);
-        String uniqueTempName = filePath.getFileName().toString().replace(".pdf", "_" + UUID.randomUUID() + ".tmp");
+        String uniqueTempName = filePath.getFileName().toString()
+                .replace(".pdf", "_" + UUID.randomUUID() + ".tmp");
         Path tempPath = filePath.resolveSibling(uniqueTempName);
-        log.info("==> Старт генерации PDF для поля: {} (Файл: {})", passport.generalInfo().fieldName(), filePath.getFileName());
+        log.info("==> Старт генерации PDF для поля: {} (Файл: {})",
+                passport.generalInfo().fieldName(), filePath.getFileName());
 
         checkStorageSafety(outputDir);
 
@@ -50,7 +63,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
             Files.createDirectories(outputDir);
         } catch (IOException e) {
             log.error("Критическая ошибка: не удалось подготовить директорию {}. Причина: {}",
-                outputDir.toAbsolutePath(), e.getMessage());
+                    outputDir.toAbsolutePath(), e.getMessage());
             throw new RuntimeException("Не удалось создать директорию", e);
         }
 
@@ -66,22 +79,26 @@ public class PdfGeneratorService implements PassportGeneratorService {
             log.debug("PDF документ открыт");
             fillDocument(document, passport, writer);
         } catch (DocumentException e) {
-            log.error("Ошибка структуры PDF (OpenPDF) для {}: {}", passport.generalInfo().fieldName(), e.getMessage());
+            log.error("Ошибка структуры PDF (OpenPDF) для {}: {}",
+                    passport.generalInfo().fieldName(), e.getMessage());
             throw new RuntimeException("Ошибка форматирования PDF", e);
         } catch (IOException e) {
             log.error("Ошибка ввода-вывода для {}: {}", filePath.getFileName(), e.getMessage());
             throw new RuntimeException("Ошибка файловой системы", e);
         }
         try {
-            FileUtils.atomicMoveWithRetries(tempPath, filePath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            FileUtils.atomicMoveWithRetries(tempPath, filePath, StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
             isMovedSuccessfully = true;
             log.info("==> Документ успешно зафиксирован на диске: {}", filePath.toAbsolutePath());
         } catch (IOException e) {
-            log.error("Критическая ошибка атомарной подмены файла для {}", filePath.getFileName(), e);
+            log.error("Критическая ошибка атомарной подмены файла для {}", filePath.getFileName(),
+                    e);
             throw new RuntimeException("Не удалось обновить финальный PDF файл", e);
         } finally {
             if (!isMovedSuccessfully) {
-                log.warn("Генерация сорвалась или прервана. Подчищаем временный файл: {}", tempPath.getFileName());
+                log.warn("Генерация сорвалась или прервана. Подчищаем временный файл: {}",
+                        tempPath.getFileName());
                 FileUtils.deleteWithRetries(tempPath);
             }
         }
@@ -101,7 +118,8 @@ public class PdfGeneratorService implements PassportGeneratorService {
                 throw new IOException("Недостаточно свободного места на диске");
             }
         } catch (IOException e) {
-            log.error("Директория: {} не готова к работе: {}", outputDir.toAbsolutePath(), e.getMessage());
+            log.error("Директория: {} не готова к работе: {}", outputDir.toAbsolutePath(),
+                    e.getMessage());
             throw new RuntimeException("Подготовка хранилища не удалась", e);
         }
     }
@@ -109,15 +127,20 @@ public class PdfGeneratorService implements PassportGeneratorService {
     private void fillDocument(Document document, FieldPassport passport, PdfWriter writer) {
         document.add(PdfUIHelper.createSectionTitle("Раздел 1. Общая информация."));
 
-        document.add(PdfUIHelper.createParagraph("1.1. Подразделение: " + passport.generalInfo().department()));
-        document.add(PdfUIHelper.createParagraph("1.2. Наименование: " + passport.generalInfo().fieldName()));
-        document.add(PdfUIHelper.createParagraph("1.3. Текущая площадь: " + PdfUIHelper.formatArea(passport.generalInfo().fieldArea()) + " Га"));
+        document.add(PdfUIHelper.createParagraph(
+                "1.1. Подразделение: " + passport.generalInfo().department()));
+        document.add(PdfUIHelper.createParagraph(
+                "1.2. Наименование: " + passport.generalInfo().fieldName()));
+        document.add(PdfUIHelper.createParagraph("1.3. Текущая площадь: " + PdfUIHelper.formatArea(
+                passport.generalInfo().fieldArea()) + " Га"));
 
-        document.add(PdfUIHelper.createParagraph("1.4. Севооборот в " + passport.generalInfo().year() + " году:"));
+        document.add(PdfUIHelper.createParagraph(
+                "1.4. Севооборот в " + passport.generalInfo().year() + " году:"));
 
         document.add(PdfUIHelper.createBulletPoint(passport.generalInfo().rotation().crop()));
         document.add(PdfUIHelper.createBulletPoint(passport.generalInfo().rotation().variety()));
-        document.add(PdfUIHelper.createBulletPoint(passport.generalInfo().rotation().reproduction()));
+        document.add(
+                PdfUIHelper.createBulletPoint(passport.generalInfo().rotation().reproduction()));
 
         document.setPageSize(PageSize.A4.rotate());
         document.newPage();
@@ -138,16 +161,17 @@ public class PdfGeneratorService implements PassportGeneratorService {
         List<NoteImage> noteImages = passport.notesSection().images();
         Map<String, byte[]> photoMap = new LinkedHashMap<>();
         noteImages.stream()
-            .sorted(NoteImageComparators.byComplexIndex())
-            .forEach(img -> {
-                byte[] bytes = img.getImageBytes();
-                if (bytes != null) {
-                    photoMap.put(img.getComplexIndex(), bytes);
-                    log.debug("Добавлено фото: индекс={}, размер={} байт", img.getComplexIndex(), bytes.length);
-                } else {
-                    log.warn("Пустые данные для фото: индекс={}", img.getComplexIndex());
-                }
-            });
+                .sorted(NoteImageComparators.byComplexIndex())
+                .forEach(img -> {
+                    byte[] bytes = img.getImageBytes();
+                    if (bytes != null) {
+                        photoMap.put(img.getComplexIndex(), bytes);
+                        log.debug("Добавлено фото: индекс={}, размер={} байт",
+                                img.getComplexIndex(), bytes.length);
+                    } else {
+                        log.warn("Пустые данные для фото: индекс={}", img.getComplexIndex());
+                    }
+                });
 
         document.newPage();
         document.add(PdfUIHelper.createPhotoGrid(writer, photoMap));
@@ -164,18 +188,19 @@ public class PdfGeneratorService implements PassportGeneratorService {
         List<SatelliteImage> satelliteImages = passport.satelliteImages();
 
         if (satelliteImages == null || satelliteImages.isEmpty()) {
-            document.add(PdfUIHelper.createParagraph("Данные спутникового мониторинга не были загружены."));
+            document.add(PdfUIHelper.createParagraph(
+                    "Данные спутникового мониторинга не были загружены."));
         } else {
             PdfUIHelper.addSatelliteImagesColumn(document, satelliteImages);
         }
 
         // --- Section 7 ---
         document.newPage();
-        document.add(PdfUIHelper.createSectionTitle("Раздел 7. Работающие механизаторы, техника, агрегаты."));
+        document.add(PdfUIHelper.createSectionTitle(
+                "Раздел 7. Работающие механизаторы, техника, агрегаты."));
         List<TechJournalTableRow> techJournalTableRows = passport.resources();
         PdfPTable techJournalTable = PdfUIHelper.createTechJournalTable(techJournalTableRows);
         document.add(techJournalTable);
-
 
         log.info("Данные поля успешно добавлены в документ");
     }
@@ -209,19 +234,19 @@ public class PdfGeneratorService implements PassportGeneratorService {
                         log.info("Прогресс: {}/{} документов готово.", current, total);
                     }
                 }
-            }))
-            .toList();
+            })).toList();
 
             for (Future<Boolean> f : futures) {
                 try {
                     f.get();
                 } catch (InterruptedException | ExecutionException e) {
-                    log.error("Поток завершился с критической ошибкой: {}", e.getCause().getMessage());
+                    log.error("Поток завершился с критической ошибкой: {}",
+                            e.getCause().getMessage());
                 }
             }
             long duration = System.currentTimeMillis() - startTime;
             log.info("==> Массовая генерация завершена! Время: {} мс. Успех {}/{}",
-                duration, successCount.get(), total);
+                    duration, successCount.get(), total);
         }
     }
 
