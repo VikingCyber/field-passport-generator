@@ -19,11 +19,15 @@
         pollingInterval: null,
         generatingSet: new Set(),
         
+        // НОВОЕ СОСТОЯНИЕ ДЛЯ СИНХРОНИЗАЦИИ
+        isSyncing: false, 
+        
         init() {
             this.loadPassports();
         },
 
         loadPassports() {
+            this.loading = true;
             fetch('/api/passports')
                 .then(res => {
                     if (!res.ok) throw new Error('Не удалось загрузить данные кэша паспортов');
@@ -47,6 +51,37 @@
             );
         },
 
+        // === НОВЫЙ МЕТОД: ЗАПУСК СИНХРОНИЗАЦИИ ===
+        startGlobalSync() {
+            if (!confirm('ВНИМАНИЕ: Будет запущена синхронизация с Агросигналом. Это обновит все справочники, операции и кэши. Приложение будет заблокировано до завершения процесса. Продолжить?')) {
+                return;
+            }
+
+            // 1. Блокируем весь интерфейс
+            this.isSyncing = true;
+            
+            // 2. Сбрасываем текущий просмотр (чтобы не смотрели на устаревшие данные)
+            this.selectedPassport = null; 
+
+            // 3. Отправляем запрос на бэкенд (замени URL на свой реальный)
+            fetch('/api/passports/sync', { method: 'POST' })
+                .then(res => {
+                    if (!res.ok) throw new Error('Ошибка на сервере при синхронизации');
+                    // Предполагаем, что бэкенд отвечает 200 OK, когда всё скачано и кэши обновлены
+                    alert('✅ Синхронизация успешно завершена! Данные обновлены.');
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('❌ Ошибка синхронизации: ' + err.message);
+                })
+                .finally(() => {
+                    // 4. Разблокируем UI и перезагружаем реестр
+                    this.isSyncing = false;
+                    this.loadPassports();
+                });
+        },
+        // =========================================
+
         startGlobalPolling() {
             if (this.pollingInterval) clearInterval(this.pollingInterval);
 
@@ -59,12 +94,9 @@
                         this.passports = this.passports.map(localP => {
                             let serverP = serverData.find(s => s.id === localP.id && s.year === localP.year);
                             if (serverP) {
-                                // Если хотя бы один паспорт на сервере всё еще варится — поллинг должен продолжаться
                                 if (serverP.status === 'PROCESSING') {
                                     stillProcessing = true;
                                 }
-                                
-                                // Сервер теперь — Single Source of Truth. Просто берем его статус!
                                 if (localP.status !== serverP.status) {
                                     return { ...localP, status: serverP.status };
                                 }
@@ -72,7 +104,6 @@
                             return localP;
                         });
 
-                        // Обновляем статус в боковой панели детального просмотра, если она открыта
                         if (this.selectedPassport) {
                             const updated = this.passports.find(p => 
                                 p.id === this.selectedPassport.id && p.year === this.selectedPassport.year
@@ -82,7 +113,6 @@
                             }
                         }
 
-                        // Если на сервере больше нет активных процессов генерации — глушим поллинг
                         if (!stillProcessing) {
                             clearInterval(this.pollingInterval);
                             this.pollingInterval = null;
@@ -179,10 +209,30 @@
         }
       }">
 
-  <header class="bg-emerald-700 text-white p-4 shadow-md flex justify-between items-center">
+  <div x-show="isSyncing" 
+       style="display: none;"
+       class="fixed inset-0 bg-gray-900/90 z-50 flex flex-col items-center justify-center text-white backdrop-blur-sm transition-opacity duration-300">
+      <div class="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-6"></div>
+      <h2 class="text-2xl font-bold tracking-wide mb-2">Обновление метаданных...</h2>
+      <p class="text-gray-300 text-center max-w-md">
+         Идет синхронизация с API Агросигнал. Загружаются справочники, техника и операции. 
+         Пожалуйста, не закрывайте вкладку.
+      </p>
+      <div class="w-64 h-1.5 bg-gray-700 rounded-full mt-6 overflow-hidden relative">
+          <div class="absolute top-0 left-0 h-full bg-emerald-500 w-1/3 animate-pulse"></div>
+      </div>
+  </div>
+
+  <header class="bg-emerald-700 text-white p-4 shadow-md flex justify-between items-center z-40 relative">
     <h1 class="text-xl font-bold tracking-wide">🌾 Генератор паспортов полей</h1>
-    <div class="flex gap-2">
-      <button @click="startMassGeneration(false)" :disabled="massGenerating || pollingInterval !== null"
+    
+    <div class="flex gap-4 items-center">
+      <button @click="startGlobalSync()" :disabled="massGenerating || pollingInterval !== null"
+        class="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-500 text-white font-semibold px-4 py-2 rounded shadow transition text-sm flex items-center gap-2 border border-blue-500">
+        <span>📡 Синхронизация API</span>
+      </button>
+
+      <div class="w-px h-6 bg-emerald-600/50 mx-1"></div> <button @click="startMassGeneration(false)" :disabled="massGenerating || pollingInterval !== null"
         class="bg-amber-500 hover:bg-amber-600 disabled:bg-gray-400 text-gray-900 font-semibold px-4 py-2 rounded shadow transition duration-150 text-sm flex items-center gap-2">
         <span x-show="massGenerating || pollingInterval !== null" class="animate-spin">🔄</span>
         <span>📋 Актуализировать паспорта</span>

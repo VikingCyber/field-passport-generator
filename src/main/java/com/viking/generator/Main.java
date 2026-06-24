@@ -1,0 +1,105 @@
+package com.viking.generator;
+
+import com.viking.generator.config.AppConfig;
+import com.viking.generator.config.AppContainer;
+import com.viking.generator.config.record.AppRuntimeConfig;
+import com.viking.generator.config.record.LocalFilesConfig;
+import com.viking.generator.data.provider.DataProvider;
+import com.viking.generator.model.FieldPassport;
+import com.viking.generator.service.orchestration.PassportOrchestrator;
+import com.viking.generator.web.AppServer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.List;
+import java.util.Scanner;
+
+public class Main {
+    private static final Logger log = LoggerFactory.getLogger(Main.class);
+    private static final Scanner scanner = new Scanner(System.in);
+
+    public static void main(String[] args) {
+        AppConfig appConfig = new AppConfig();
+        AppContainer container = new AppContainer(appConfig);
+
+        log.info("Initializing data cache...");
+        LocalFilesConfig filesConfig = appConfig.getLocalFilesConfig();
+        container.getSyncService().warmUpAll(filesConfig.notesPath(), filesConfig.fieldDataPath());
+
+        AppRuntimeConfig runtimeConfig = appConfig.getAppRuntimeConfig();
+        if ("web".equalsIgnoreCase(runtimeConfig.mode())) {
+            log.info("Starting in WEB mode on port {}...", runtimeConfig.serverPort());
+            AppServer server = new AppServer(container.getOrchestrator());
+            server.start(runtimeConfig.serverPort());
+            log.info("Application ready and serving traffic.");
+        } else {
+            log.info("Starting in CONSOLE mode...");
+            runMenu(container.getDataProvider(), container.getOrchestrator());
+        }
+
+        log.info("Application Started.");
+
+    }
+
+    private static void runMenu(DataProvider provider, PassportOrchestrator orchestrator) {
+        while (true) {
+            printMenu();
+            String choice = scanner.nextLine();
+
+            try {
+                switch (choice) {
+                    case "1" -> {
+                        System.out.print("Запустить принудительную перегенерацию (y/n)? ");
+                        boolean force = scanner.nextLine().equalsIgnoreCase("y");
+                        generateAll(provider, orchestrator, force);
+                    }
+                    case "2" -> generateOne(provider, orchestrator);
+                    case "0" -> {
+                        log.info("Завершение работы...");
+                        return;
+                    }
+                    default -> System.out.println("⚠️ Неверный выбор, попробуйте снова.");
+                }
+            } catch (Exception e) {
+                log.error("Произошла ошибка: {}", e.getMessage());
+            }
+        }
+    }
+
+    private static void printMenu() {
+        System.out.println("\n" + "=".repeat(30));
+        System.out.println("ГЕНЕРАТОР ПАСПОРТОВ ПОЛЕЙ");
+        System.out.println("=".repeat(30));
+        System.out.println("1. Сгенерировать ВСЕ паспорта (все поля и сезоны)");
+        System.out.println("2. Сгенерировать паспорта конкретного поля");
+        System.out.println("0. Выход");
+        System.out.print("\nВыберите опцию: ");
+    }
+
+    private static void generateAll(DataProvider provider, PassportOrchestrator orchestrator, boolean force) {
+        log.info("Загрузка данных для массовой генерации...");
+        List<FieldPassport> all = provider.getPassportsData();
+        orchestrator.processMassGeneration(all, force);
+    }
+
+    private static void generateOne(DataProvider provider, PassportOrchestrator orchestrator) {
+        System.out.print("Введите точное название поля (например, ТК02-02): ");
+        String target = scanner.nextLine().trim();
+
+        System.out.print("Принудительно перегенерировать (y/n)? ");
+        boolean force = scanner.nextLine().equalsIgnoreCase("y");
+
+        // Фильтруем все сезоны для этого конкретного поля
+        List<FieldPassport> selected = provider.getPassportsData().stream()
+                .filter(p -> p.generalInfo().fieldName().equalsIgnoreCase(target))
+                .toList();
+
+        if (selected.isEmpty()) {
+            System.out.println("❌ Поле '" + target + "' не найдено в базе данных.");
+        } else {
+            log.info("Найдено сезонов для поля {}: {}. Начинаю генерацию...", target, selected.size());
+            orchestrator.processMassGeneration(selected, force);
+            System.out.println("✅ Паспорта для поля " + target + " успешно созданы.");
+        }
+    }
+}

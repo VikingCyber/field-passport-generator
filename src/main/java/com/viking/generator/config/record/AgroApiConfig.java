@@ -1,0 +1,15 @@
+package com.viking.generator.config.record;
+
+public record AgroApiConfig(
+        String apiKey,
+        String baseUrl,
+        String userAgent,
+        long minDownloadSizeBytes,
+        long recoveryTimeMs,
+        String attachmentsEndpoint,
+        String spectralIndicesEndpoint,
+        String fieldReportEndpoint,
+        String tmcEndpoint,
+        String unitsEndpoint,
+        String notesEndpoint
+) {}
