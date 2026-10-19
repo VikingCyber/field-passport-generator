@@ -111,9 +111,17 @@ public class FieldDataAggregator {
                 .map(RawFieldData::fieldId)
                 .distinct()
                 .toList();
-        // У всех записей одного участка площадь одинаковая; берём первую как эталонную
-        // для привязки спутниковых снимков/графика.
-        Long primaryFieldId = fieldIds.get(0);
+        // Инвариант: все записи одного участка за год несут один и тот же sourceId,
+        // поэтому эталонным полем для привязки снимков/графика берём sourceId той же
+        // строки, из которой берётся название/площадь/год (и она же становится ID паспорта).
+        Long primaryFieldId = primary.fieldId();
+        if (fieldIds.size() > 1) {
+            // Инвариант нарушен: операции и заметки склеиваются из всех id, а снимки/график
+            // привяжутся к primaryFieldId. Возможно, участок перерегистрирован посреди сезона.
+            log.warn("Участок '{}' за {} г. содержит несколько sourceId: {}; эталоном снимков/графика " +
+                            "взят primaryFieldId={}",
+                    primary.plotName(), passportYear, fieldIds, primaryFieldId);
+        }
 
         List<RawOperationData> cleanOps = new ArrayList<>();
         for (Long fieldId : fieldIds) {

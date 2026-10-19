@@ -358,6 +358,51 @@ class FieldDataAggregatorIntegrationTest {
         assertEquals("ТК10-01", passports.getFirst().generalInfo().fieldName());
     }
 
+    @Test
+    @DisplayName("При нескольких sourceId в группе за год эталоном снимков/графика становится sourceId первой записи (как ID паспорта)")
+    void shouldUsePrimaryFieldAsReferenceWhenGroupHasSeveralFieldIds() {
+        // --- ARRANGE ---
+        // Гипотетический случай: участок ТК21-01 в один год имеет две записи с разными
+        // sourceId (например, перерегистрирован посреди сезона). Паспорт один, операции
+        // склеиваются из обоих id, а эталон привязки снимков/графика — первая запись.
+        RawFieldData first = new RawFieldData(
+                "Северный", 100L, "ТК21-01", 150.0, "Овес 2025", "Скакун", "Элита", null, null);
+        RawFieldData second = new RawFieldData(
+                "Северный", 200L, "ТК21-01", 150.0, "Ячмень 2025", "Сладкий", "Репр1", null, null);
+        RawApiResponse fieldsResponse = new RawApiResponse(List.of(first, second));
+
+        long baseTimeMs = LocalDateTime.of(2025, 5, 10, 8, 0).atZone(timezone).toInstant().toEpochMilli();
+        long oneHourMs = Duration.ofHours(1).toMillis();
+        RawOperationData opOats = new RawOperationData();
+        setOperationFields(opOats, 100L, "Посев овса", baseTimeMs, baseTimeMs + oneHourMs,
+                40.0, 38.0, "10.05.2025", baseTimeMs);
+        RawOperationData opBarley = new RawOperationData();
+        setOperationFields(opBarley, 200L, "Посев ячменя", baseTimeMs + oneHourMs,
+                baseTimeMs + 2 * oneHourMs, 50.0, 48.0, "10.05.2025", baseTimeMs + oneHourMs);
+        RawOperationsResponse opsResponse = new RawOperationsResponse(List.of(opOats, opBarley));
+
+        // --- ACT ---
+        List<FieldPassport> passports = aggregator.aggregate(fieldsResponse, opsResponse,
+                new RawGoodsResponse(List.of()), new RawNotesResponse(List.of(), false, 0),
+                new RawMachineResponse(List.of()));
+
+        // --- ASSERT ---
+        assertEquals(1, passports.size(), "Должен получиться один паспорт на участок и год");
+        FieldPassport passport = passports.getFirst();
+        assertEquals("100", passport.fieldId(),
+                "ID паспорта берётся из первой записи группы (как раньше)");
+        assertEquals(2, passport.operations().size(),
+                "Операции должны склеиваться из всех sourceId группы");
+        assertNotNull(passport.indexChart());
+        assertEquals("100", passport.indexChart().getId(),
+                "График привязывается к sourceId первой записи (эталону привязки)");
+        List<String> crops = passport.generalInfo().rotations().stream()
+                .map(CropRotation::crop)
+                .toList();
+        assertEquals(List.of("Овес 2025", "Ячмень 2025"), crops,
+                "Обе ротации севооборота должны быть собраны");
+    }
+
     private void setOperationFields(RawOperationData op, Long fieldId, String name, Long start, Long end, Double area, Double validHa, String rawDate, Long mTime) {
         try {
             java.lang.reflect.Field fId = RawOperationData.class.getDeclaredField("fieldId");
