@@ -4,6 +4,7 @@ import com.viking.generator.config.AppConfig;
 import com.viking.generator.config.AppContainer;
 import com.viking.generator.config.record.AppRuntimeConfig;
 import com.viking.generator.config.record.LocalFilesConfig;
+import com.viking.generator.config.record.StoragePathsConfig;
 import com.viking.generator.data.provider.DataProvider;
 import com.viking.generator.model.FieldPassport;
 import com.viking.generator.service.orchestration.PassportOrchestrator;
@@ -11,8 +12,14 @@ import com.viking.generator.web.AppServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Scanner;
+import java.util.Set;
+import java.util.stream.Stream;
 
 public class Main {
     private static final Logger log = LoggerFactory.getLogger(Main.class);
@@ -32,6 +39,7 @@ public class Main {
             AppServer server = new AppServer(container.getOrchestrator());
             server.start(runtimeConfig.serverPort());
             log.info("Application ready and serving traffic.");
+            registerShutdownHook(server, appConfig);
         } else {
             log.info("Starting in CONSOLE mode...");
             runMenu(container.getDataProvider(), container.getOrchestrator());
@@ -39,6 +47,71 @@ public class Main {
 
         log.info("Application Started.");
 
+    }
+
+    /**
+     * Регистрирует shutdown hook: останавливает HTTP-сервер и подчищает временные
+     * файлы (*.tmp) из рабочих директорий, чтобы после Ctrl+C или System.exit
+     * не оставалось хвостов от прерванных записей.
+     */
+    private static void registerShutdownHook(AppServer server, AppConfig appConfig) {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            log.info("Перехвачен сигнал завершения JVM. Выполняю graceful shutdown...");
+            try {
+                server.stop();
+            } catch (Exception e) {
+                log.error("Ошибка при graceful shutdown HTTP-сервера", e);
+            }
+            cleanupTempFiles(appConfig);
+            log.info("Graceful shutdown завершён.");
+        }, "graceful-shutdown"));
+    }
+
+    private static void cleanupTempFiles(AppConfig appConfig) {
+        StoragePathsConfig paths = appConfig.getStoragePathsConfig();
+        LocalFilesConfig files = appConfig.getLocalFilesConfig();
+
+        Set<Path> dirs = new LinkedHashSet<>();
+        dirs.add(paths.outputDir());
+        dirs.add(files.fieldDataPath().getParent());
+
+        for (Path dir : dirs) {
+            if (dir == null || !Files.isDirectory(dir)) {
+                continue;
+            }
+            try (Stream<Path> stream = Files.list(dir)) {
+                stream.filter(p -> p.getFileName().toString().endsWith(".tmp"))
+                        .forEach(Main::deleteTempFileWithRetries);
+            } catch (IOException e) {
+                log.warn("Не удалось просканировать {} при очистке временных файлов: {}",
+                        dir, e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Удаляет временный файл с повторами (на случай кратковременной блокировки
+     * файла на Windows). Использует только JDK-классы, т.к. в shutdown hook
+     * класслоадер exec:java уже закрыт и кастомные классы загрузить нельзя.
+     */
+    private static void deleteTempFileWithRetries(Path file) {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            try {
+                Files.deleteIfExists(file);
+                return;
+            } catch (IOException e) {
+                if (attempt == 2) {
+                    log.warn("Не удалось удалить временный файл {}: {}", file, e.getMessage());
+                    return;
+                }
+                try {
+                    Thread.sleep(50L * (attempt + 1));
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
     }
 
     private static void runMenu(DataProvider provider, PassportOrchestrator orchestrator) {

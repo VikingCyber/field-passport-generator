@@ -44,11 +44,26 @@
         },
 
         get filteredPassports() {
-            if (!this.searchQuery) return this.passports;
-            return this.passports.filter(p => 
-                p.fieldName.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-                p.cropName.toLowerCase().includes(this.searchQuery.toLowerCase())
-            );
+            const q = this.searchQuery.toLowerCase();
+            let list = this.passports;
+            if (q) {
+                list = list.filter(p =>
+                    (p.fieldName || '').toLowerCase().includes(q) ||
+                    (p.cropName || '').toLowerCase().includes(q)
+                );
+            }
+            // Естественная сортировка: ТК14-02 раньше ТК14-10; внутри одного
+            // поля/участка — год по убыванию (свежие паспорта сверху).
+            return [...list].sort((a, b) => {
+                const byName = this.naturalCompare(a.fieldName, b.fieldName);
+                return byName !== 0 ? byName : ((b.year || 0) - (a.year || 0));
+            });
+        },
+
+        // Сравнение строк с учётом цифр в имени: ТК14-01, ТК14-02, ТК14-10, ТК116-01
+        naturalCompare(a, b) {
+            return String(a ?? '').localeCompare(String(b ?? ''), 'ru',
+                { numeric: true, sensitivity: 'base' });
         },
 
         // === НОВЫЙ МЕТОД: ЗАПУСК СИНХРОНИЗАЦИИ ===
@@ -122,6 +137,15 @@
                     })
                     .catch(err => console.error('Ошибка фонового обновления статусов:', err));
             }, 2000);
+        },
+
+        stopServer() {
+            if (!confirm('Остановить сервер? Активные задачи завершатся корректно, соединение будет закрыто.')) {
+                return;
+            }
+            fetch('/api/shutdown', { method: 'POST' })
+                .then(() => alert('Сервер остановлен. Можно закрыть окно.'))
+                .catch(() => alert('Не удалось остановить сервер.'));
         },
 
         startMassGeneration(force = false) {
@@ -241,6 +265,11 @@
       <button @click="startMassGeneration(true)" :disabled="massGenerating || pollingInterval !== null"
         class="bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold px-4 py-2 rounded shadow transition text-sm flex items-center gap-2">
         <span>⚡ Пересоздать всё</span>
+      </button>
+
+      <div class="w-px h-6 bg-emerald-600/50 mx-1"></div> <button @click="stopServer()" :disabled="massGenerating || pollingInterval !== null"
+        class="bg-gray-700 hover:bg-gray-800 disabled:bg-gray-400 text-white font-semibold px-4 py-2 rounded shadow transition text-sm flex items-center gap-2">
+        <span>⏻ Остановить</span>
       </button>
     </div>
   </header>
