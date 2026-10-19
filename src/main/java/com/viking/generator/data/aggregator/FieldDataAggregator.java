@@ -75,15 +75,10 @@ public class FieldDataAggregator {
             }
         }
 
-        Set<String> allPlotNames = fieldsResponse.data().stream()
-                .map(RawFieldData::plotName)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
         // Группируем записи по (имя участка, год). Участком считается посев (sowing),
-        // если он задан, иначе — само поле. Записи материнских полей ("ТК21") с участками
-        // "ТК21-01" и т.п. в паспорта не попадают: паспорта генерируются для участков,
-        // а данные посевов берутся из строк родительского поля, где указан этот посев.
+        // если он задан (данные участка лежат в строках родительского поля с этим
+        // посевом), иначе — само поле. Паспорт получает и каждый участок, и само поле,
+        // если у него есть собственные записи без посева (своя история ротаций).
         // Несколько посевов одного участка за год сливаются в один паспорт со всеми
         // ротациями севооборота.
         Map<String, List<RawFieldData>> groupsByPlotYear = new LinkedHashMap<>();
@@ -92,11 +87,6 @@ public class FieldDataAggregator {
             if (plotName == null || plotName.isBlank()) {
                 log.debug("Пропускаем запись без имени участка (fieldId={}): имя пустое",
                         rawField.fieldId());
-                continue;
-            }
-            if (isParentUmbrella(plotName, allPlotNames)) {
-                log.debug("Пропускаем запись материнского поля '{}' (fieldId={}): у него есть участки, "
-                        + "паспорт генерируется только для участка", plotName, rawField.fieldId());
                 continue;
             }
             String key = (plotName == null ? "" : plotName)
@@ -108,26 +98,6 @@ public class FieldDataAggregator {
                 .map(group -> buildPassport(group, opsByFieldId, tmcDictionary,
                         machineDictionary, notesByFieldId))
                 .collect(Collectors.toList());
-    }
-
-    /**
-     * Запись является «материнским полем», если среди всех полей есть участок с именем
-     * вида {@code "<thisName>-<digits>"} (например, "ТК21-01" для "ТК21").
-     */
-    private boolean isParentUmbrella(String name, Set<String> allFieldNames) {
-        if (name == null || name.isBlank()) {
-            return false;
-        }
-        for (String other : allFieldNames) {
-            if (other == null || other.length() <= name.length() || !other.startsWith(name)
-                    || other.charAt(name.length()) != '-') {
-                continue;
-            }
-            if (other.substring(name.length() + 1).matches("\\d+")) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private FieldPassport buildPassport(List<RawFieldData> group,
