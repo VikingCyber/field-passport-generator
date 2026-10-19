@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.*;
 import java.util.*;
+import java.util.stream.Collectors;
 
 // Импортируем стандартные ассерты JUnit 5
 import static org.junit.jupiter.api.Assertions.*;
@@ -71,7 +72,7 @@ class FieldDataAggregatorIntegrationTest {
 
         RawFieldData rawField = new RawFieldData(
                 "Северный", targetFieldId, "Поле №12", 150.0,
-                "Посажено в 2025 году: Овес", "Скакун", "Элита"
+                "Посажено в 2025 году: Овес", "Скакун", "Элита", null, null
         );
         RawApiResponse fieldsResponse = new RawApiResponse(List.of(rawField));
 
@@ -187,9 +188,9 @@ class FieldDataAggregatorIntegrationTest {
     void shouldMergeMultiSowingRecordsIntoOnePassport() {
         // --- ARRANGE ---
         RawFieldData sowing1 = new RawFieldData(
-                "Северный", 100L, "ТК21-01", 150.0, "Овес 2025", "Скакун", "Элита");
+                "Северный", 100L, "ТК21-01", 150.0, "Овес 2025", "Скакун", "Элита", null, null);
         RawFieldData sowing2 = new RawFieldData(
-                "Северный", 200L, "ТК21-01", 150.0, "Ячмень 2025", "Сладкий", "Репр1");
+                "Северный", 200L, "ТК21-01", 150.0, "Ячмень 2025", "Сладкий", "Репр1", null, null);
         RawApiResponse fieldsResponse = new RawApiResponse(List.of(sowing1, sowing2));
         RawGoodsResponse goodsResponse = new RawGoodsResponse(List.of());
         RawMachineResponse machineResponse = new RawMachineResponse(List.of());
@@ -230,9 +231,9 @@ class FieldDataAggregatorIntegrationTest {
     void shouldDropParentUmbrellaAndKeepPlotPassport() {
         // --- ARRANGE ---
         RawFieldData parent = new RawFieldData(
-                "Северный", 500L, "ТК21", 500.0, "Пшеница 2025", "Сибирь", "Элита");
+                "Северный", 500L, "ТК21", 500.0, "Пшеница 2025", "Сибирь", "Элита", null, null);
         RawFieldData plot = new RawFieldData(
-                "Северный", 501L, "ТК21-01", 150.0, "Овес 2025", "Скакун", "Элита");
+                "Северный", 501L, "ТК21-01", 150.0, "Овес 2025", "Скакун", "Элита", null, null);
         RawApiResponse fieldsResponse = new RawApiResponse(List.of(parent, plot));
 
         // --- ACT ---
@@ -245,6 +246,98 @@ class FieldDataAggregatorIntegrationTest {
         FieldPassport passport = passports.getFirst();
         assertEquals("ТК21-01", passport.generalInfo().fieldName());
         assertEquals("501", passport.fieldId());
+    }
+
+    @Test
+    @DisplayName("Должен генерировать паспорт на посев, который есть только внутри родительского поля")
+    void shouldGeneratePassportForPlotThatExistsOnlyAsSowingOfParent() {
+        // --- ARRANGE ---
+        // Поле ТК10 (224.42 га) поделено на 4 посева; ТК10-02/03 существуют только как посевы.
+        RawFieldData parentOwn = new RawFieldData(
+                "Северный", 500L, "ТК10", 224.42, "Рапс 2024", "Сибирь", "Элита", null, null);
+        RawFieldData sowing01 = new RawFieldData(
+                "Северный", 500L, "ТК10", 224.42, "Пшеница 2025", "Скакун", "Элита", "ТК10-01", 53.0);
+        RawFieldData sowing02 = new RawFieldData(
+                "Северный", 500L, "ТК10", 224.42, "Пшеница 2025", "Скакун", "Элита", "ТК10-02", 117.0);
+        RawFieldData sowing03 = new RawFieldData(
+                "Северный", 500L, "ТК10", 224.42, "Пшеница 2025", "Скакун", "Элита", "ТК10-03", 39.6);
+        RawFieldData sowing04 = new RawFieldData(
+                "Северный", 500L, "ТК10", 224.42, "Пшеница 2025", "Скакун", "Элита", "ТК10-04", 12.1);
+        RawApiResponse fieldsResponse = new RawApiResponse(
+                List.of(parentOwn, sowing01, sowing02, sowing03, sowing04));
+
+        // --- ACT ---
+        List<FieldPassport> passports = aggregator.aggregate(fieldsResponse,
+                new RawOperationsResponse(List.of()), new RawGoodsResponse(List.of()),
+                new RawNotesResponse(List.of(), false, 0), new RawMachineResponse(List.of()));
+
+        // --- ASSERT ---
+        assertEquals(4, passports.size(),
+                "Должно быть 4 паспорта (по числу посевов ТК10-01..04), родительское поле без посева не должно давать паспорт");
+        Map<String, FieldPassport> byName = passports.stream()
+                .collect(Collectors.toMap(p -> p.generalInfo().fieldName(), p -> p));
+        assertFalse(byName.containsKey("ТК10"), "Паспорт родительского поля ТК10 не должен существовать");
+        FieldPassport plot02 = byName.get("ТК10-02");
+        assertNotNull(plot02, "Паспорт посева ТК10-02 должен существовать");
+        assertEquals(117.0, plot02.generalInfo().fieldArea(), 0.001,
+                "Площадь посева должна браться из sowingArea, а не из площади родителя");
+        assertEquals("Пшеница 2025", plot02.generalInfo().rotations().getFirst().crop());
+        assertEquals(1, plot02.generalInfo().rotations().size());
+    }
+
+    @Test
+    @DisplayName("Должен объединить записи участка, представленного и отдельным полем, и посевом")
+    void shouldMergeStandaloneFieldAndSowingRowsOfSamePlot() {
+        // --- ARRANGE ---
+        // ТК10-01 есть и как отдельное поле (Пшеница 2025, 53 га), и как посев внутри ТК10 (Пар 2026, 53 га).
+        RawFieldData standalone = new RawFieldData(
+                "Северный", 501L, "ТК10-01", 53.0, "Пшеница 2025", "Скакун", "Элита", null, null);
+        RawFieldData parentRow = new RawFieldData(
+                "Северный", 500L, "ТК10", 224.42, "Пар 2026", "Сибирь", "Элита", "ТК10-01", 53.0);
+        RawApiResponse fieldsResponse = new RawApiResponse(List.of(standalone, parentRow));
+
+        // --- ACT ---
+        List<FieldPassport> passports = aggregator.aggregate(fieldsResponse,
+                new RawOperationsResponse(List.of()), new RawGoodsResponse(List.of()),
+                new RawNotesResponse(List.of(), false, 0), new RawMachineResponse(List.of()));
+
+        // --- ASSERT ---
+        Map<Integer, FieldPassport> byYear = passports.stream()
+                .collect(Collectors.toMap(p -> p.generalInfo().year(), p -> p));
+        assertEquals(2, passports.size(), "Должно быть 2 паспорта участка ТК10-01 (2025 и 2026)");
+
+        FieldPassport p2025 = byYear.get(2025);
+        assertNotNull(p2025);
+        assertEquals("ТК10-01", p2025.generalInfo().fieldName());
+        assertEquals(53.0, p2025.generalInfo().fieldArea(), 0.001);
+        assertEquals("Пшеница 2025", p2025.generalInfo().rotations().getFirst().crop());
+
+        FieldPassport p2026 = byYear.get(2026);
+        assertNotNull(p2026);
+        assertEquals("ТК10-01", p2026.generalInfo().fieldName());
+        assertEquals(53.0, p2026.generalInfo().fieldArea(), 0.001,
+                "Площадь должна предпочитать sowingArea (53), а не площадь родителя (224.42)");
+        assertEquals("Пар 2026", p2026.generalInfo().rotations().getFirst().crop());
+    }
+
+    @Test
+    @DisplayName("Должен пропустить запись без имени участка и поля (мусорные строки выгрузки)")
+    void shouldSkipRowWithoutPlotName() {
+        // --- ARRANGE ---
+        RawFieldData junk = new RawFieldData(
+                "Северный", 369629L, "", 0.0, " 2026", "", "", null, null);
+        RawFieldData normal = new RawFieldData(
+                "Северный", 501L, "ТК10-01", 53.0, "Пшеница 2025", "Скакун", "Элита", null, null);
+        RawApiResponse fieldsResponse = new RawApiResponse(List.of(junk, normal));
+
+        // --- ACT ---
+        List<FieldPassport> passports = aggregator.aggregate(fieldsResponse,
+                new RawOperationsResponse(List.of()), new RawGoodsResponse(List.of()),
+                new RawNotesResponse(List.of(), false, 0), new RawMachineResponse(List.of()));
+
+        // --- ASSERT ---
+        assertEquals(1, passports.size(), "Запись с пустым именем не должна давать паспорт");
+        assertEquals("ТК10-01", passports.getFirst().generalInfo().fieldName());
     }
 
     private void setOperationFields(RawOperationData op, Long fieldId, String name, Long start, Long end, Double area, Double validHa, String rawDate, Long mTime) {

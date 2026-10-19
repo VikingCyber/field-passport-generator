@@ -75,23 +75,31 @@ public class FieldDataAggregator {
             }
         }
 
-        Set<String> allFieldNames = fieldsResponse.data().stream()
-                .map(RawFieldData::field)
+        Set<String> allPlotNames = fieldsResponse.data().stream()
+                .map(RawFieldData::plotName)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        // Группируем записи по (имя участка, год). Записи материнских полей ("ТК21"),
-        // у которых есть участки "ТК21-01" и т.п., в паспорта не попадают: паспорта
-        // генерируются только для участков. Несколько посевов одного участка за год
-        // сливаются в один паспорт со всеми ротациями севооборота.
+        // Группируем записи по (имя участка, год). Участком считается посев (sowing),
+        // если он задан, иначе — само поле. Записи материнских полей ("ТК21") с участками
+        // "ТК21-01" и т.п. в паспорта не попадают: паспорта генерируются для участков,
+        // а данные посевов берутся из строк родительского поля, где указан этот посев.
+        // Несколько посевов одного участка за год сливаются в один паспорт со всеми
+        // ротациями севооборота.
         Map<String, List<RawFieldData>> groupsByPlotYear = new LinkedHashMap<>();
         for (RawFieldData rawField : fieldsResponse.data()) {
-            if (isParentUmbrella(rawField.field(), allFieldNames)) {
-                log.debug("Пропускаем запись материнского поля '{}' (fieldId={}): у него есть участки, "
-                        + "паспорт генерируется только для участка", rawField.field(), rawField.fieldId());
+            String plotName = rawField.plotName();
+            if (plotName == null || plotName.isBlank()) {
+                log.debug("Пропускаем запись без имени участка (fieldId={}): имя пустое",
+                        rawField.fieldId());
                 continue;
             }
-            String key = (rawField.field() == null ? "" : rawField.field())
+            if (isParentUmbrella(plotName, allPlotNames)) {
+                log.debug("Пропускаем запись материнского поля '{}' (fieldId={}): у него есть участки, "
+                        + "паспорт генерируется только для участка", plotName, rawField.fieldId());
+                continue;
+            }
+            String key = (plotName == null ? "" : plotName)
                     + KEY_SEPARATOR + YearUtils.extractYear(rawField.crop());
             groupsByPlotYear.computeIfAbsent(key, k -> new ArrayList<>()).add(rawField);
         }
@@ -161,7 +169,7 @@ public class FieldDataAggregator {
         List<TechJournalTableRow> techJournalTableRows =
                 techJournalMapper.mapToTableRow(cleanOps, machineDictionary);
 
-        String chartTitle = String.format("%s - %s %d", primary.field(), primary.department(),
+        String chartTitle = String.format("%s - %s %d", primary.plotName(), primary.department(),
                 passportYear);
         ChartImage indexChart = new ChartImage(String.valueOf(primaryFieldId), passportYear,
                 chartTitle, new ArrayList<>());

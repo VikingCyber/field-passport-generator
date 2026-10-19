@@ -41,8 +41,8 @@ public class PassportMapper {
 
         GeneralInfo info = new GeneralInfo(
             raw.department() != null ? raw.department() : "Не указано",
-            raw.field() != null ? raw.field() : "Без названия",
-            raw.fieldArea(),
+            raw.plotName() != null ? raw.plotName() : "Без названия",
+            raw.plotArea(),
             year,
             rotations != null && !rotations.isEmpty()
                     ? rotations
