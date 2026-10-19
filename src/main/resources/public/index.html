@@ -44,11 +44,26 @@
         },
 
         get filteredPassports() {
-            if (!this.searchQuery) return this.passports;
-            return this.passports.filter(p => 
-                p.fieldName.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-                p.cropName.toLowerCase().includes(this.searchQuery.toLowerCase())
-            );
+            const q = this.searchQuery.toLowerCase();
+            let list = this.passports;
+            if (q) {
+                list = list.filter(p =>
+                    (p.fieldName || '').toLowerCase().includes(q) ||
+                    (p.cropName || '').toLowerCase().includes(q)
+                );
+            }
+            // Естественная сортировка: ТК14-02 раньше ТК14-10; внутри одного
+            // поля/участка — год по убыванию (свежие паспорта сверху).
+            return [...list].sort((a, b) => {
+                const byName = this.naturalCompare(a.fieldName, b.fieldName);
+                return byName !== 0 ? byName : ((b.year || 0) - (a.year || 0));
+            });
+        },
+
+        // Сравнение строк с учётом цифр в имени: ТК14-01, ТК14-02, ТК14-10, ТК116-01
+        naturalCompare(a, b) {
+            return String(a ?? '').localeCompare(String(b ?? ''), 'ru',
+                { numeric: true, sensitivity: 'base' });
         },
 
         // === НОВЫЙ МЕТОД: ЗАПУСК СИНХРОНИЗАЦИИ ===
