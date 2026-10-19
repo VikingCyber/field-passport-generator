@@ -13,16 +13,22 @@ import com.viking.generator.util.YearUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class PassportMapper {
     private static final Logger log = LoggerFactory.getLogger(PassportMapper.class);
 
+    private static final CropRotation UNKNOWN_ROTATION = new CropRotation("-", "-", "-");
+
     /**
      * Превращает сырые данные поля и подготовленный список операций в доменный объект паспорта.
+     *
+     * @param rotations все ротации севооборота участка за год (несколько при нескольких посевах)
      */
-    public static FieldPassport mapToDomain(RawFieldData raw, List<OperationTableRow> operations,
+    public static FieldPassport mapToDomain(RawFieldData raw, List<CropRotation> rotations,
+                                            List<OperationTableRow> operations,
                                             NoteSection noteSection, List<SatelliteImage> satelliteImages,
                                             ChartImage chartImage, List<TechJournalTableRow> techJournal) {
         String rawCrop = raw.crop();
@@ -38,11 +44,9 @@ public class PassportMapper {
             raw.field() != null ? raw.field() : "Без названия",
             raw.fieldArea(),
             year,
-            new CropRotation(
-                rawCrop != null ? rawCrop.trim() : "-",
-                raw.variety() != null ? raw.variety() : "-",
-                raw.reproduction() != null ? raw.reproduction() : "-"
-            )
+            rotations != null && !rotations.isEmpty()
+                    ? rotations
+                    : new ArrayList<>(List.of(UNKNOWN_ROTATION))
         );
 
         return new FieldPassport(

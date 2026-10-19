@@ -137,10 +137,12 @@ public class PdfGeneratorService implements PassportGeneratorService {
         document.add(PdfUIHelper.createParagraph(
                 "1.4. Севооборот в " + passport.generalInfo().year() + " году:"));
 
-        document.add(PdfUIHelper.createBulletPoint(passport.generalInfo().rotation().crop()));
-        document.add(PdfUIHelper.createBulletPoint(passport.generalInfo().rotation().variety()));
-        document.add(
-                PdfUIHelper.createBulletPoint(passport.generalInfo().rotation().reproduction()));
+        for (var rotation : passport.generalInfo().rotations()) {
+            document.add(PdfUIHelper.createBulletPoint(rotation.crop()));
+            document.add(PdfUIHelper.createBulletPoint(rotation.variety()));
+            document.add(
+                    PdfUIHelper.createBulletPoint(rotation.reproduction()));
+        }
 
         document.setPageSize(PageSize.A4.rotate());
         document.newPage();
