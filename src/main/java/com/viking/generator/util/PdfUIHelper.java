@@ -51,6 +51,10 @@ public final class PdfUIHelper {
     private static final Font FONT_TABLE_TITLE;
     private static final Font FONT_TABLE_BODY;
 
+    /** Единый плейсхолдер для отсутствующих данных во всех разделах паспорта. */
+    public static final String NO_DATA = "— нет данных —";
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+
 
     /**
      * Закрытый конструктор, чтобы нельзя было создать экземпляр утилитарного класса
@@ -160,7 +164,26 @@ public final class PdfUIHelper {
         );
     }
 
+    /** Возвращает значение или единый плейсхолдер, если значение null/пустое. */
+    public static String orNoData(String value) {
+        return (value == null || value.isBlank()) ? NO_DATA : value;
+    }
+
+    /** Таблица-заглушка для раздела, в котором нет данных. */
+    private static PdfPTable placeholderTable() {
+        PdfPTable table = new PdfPTable(1);
+        table.setWidthPercentage(100f);
+        table.setSpacingBefore(10f);
+        PdfPCell cell = new PdfPCell(new Phrase(NO_DATA, FONT_TEXT));
+        cell.setBorder(Rectangle.NO_BORDER);
+        table.addCell(cell);
+        return table;
+    }
+
     public static PdfPTable createOperationsTable(List<OperationTableRow> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return placeholderTable();
+        }
         float[] widths = {2.0f, 1.5f, 1.5f, 1.3f, 1.3f, 1.5f, 1.0f, 0.8f, 1.0f};
         PdfPTable table = createStandardTable(9, widths);
 
@@ -256,7 +279,7 @@ public final class PdfUIHelper {
         if (hasTmc) {
             contentCell.addElement(createTmcTable(rows));
         } else {
-            Paragraph noDataMsg = new Paragraph("Нет данных о расходе ТМЦ", FONT_TEXT);
+            Paragraph noDataMsg = new Paragraph(NO_DATA, FONT_TEXT);
             contentCell.addElement(noDataMsg);
         }
         container.addCell(contentCell);
@@ -266,7 +289,7 @@ public final class PdfUIHelper {
 
 
     public static PdfPTable createNotesTable(List<NoteTableRow> notes) {
-        if (notes == null || notes.isEmpty()) return new PdfPTable(1);
+        if (notes == null || notes.isEmpty()) return placeholderTable();
 
         float[] columnWidths = {5f, 20f, 45f, 15f, 20f};
         PdfPTable table = createStandardTable(5, columnWidths);
@@ -361,7 +384,7 @@ public final class PdfUIHelper {
 
     public static PdfPTable createPhotoGrid(PdfWriter writer, Map<String, byte[]> photos) {
         if (photos == null || photos.isEmpty()) {
-            return new PdfPTable(1);
+            return placeholderTable();
         }
 
         PdfPTable grid = new PdfPTable(3);
@@ -394,7 +417,7 @@ public final class PdfUIHelper {
 
     public static PdfPTable createTechJournalTable(List<TechJournalTableRow> techJournalTableRows) {
         if (techJournalTableRows == null || techJournalTableRows.isEmpty()) {
-            return new PdfPTable(1);
+            return placeholderTable();
         }
 
         float[] columnWidths = {50f, 30f, 20f};
@@ -424,16 +447,32 @@ public final class PdfUIHelper {
         Paragraph title = createSectionTitle("Раздел 4. Индексы");
         title.setAlignment(Element.ALIGN_LEFT);
         cell.addElement(title);
-        try {
-            Image img = Image.getInstance(chartImage.getImageBytes());
-            img.setAlignment(Image.ALIGN_CENTER);
-            cell.addElement(img);
-        } catch (Exception e) {
-            log.error("Error rendering chartImage: {}", e.getMessage());
-            cell.addElement(new Phrase("Ошибка отрисовки графика"));
+
+        if (chartImage == null || chartImage.getImageBytes() == null) {
+            cell.addElement(new Phrase(NO_DATA, FONT_TEXT));
+        } else {
+            try {
+                Image img = Image.getInstance(chartImage.getImageBytes());
+                img.setAlignment(Image.ALIGN_CENTER);
+                cell.addElement(img);
+            } catch (Exception e) {
+                log.error("Error rendering chartImage: {}", e.getMessage());
+                cell.addElement(new Phrase("Ошибка отрисовки графика", FONT_TEXT));
+            }
         }
         table.addCell(cell);
         document.add(table);
+    }
+
+    /**
+     * Формирует подпись к спутниковому снимку в едином виде:
+     * метка, затем «Плановая дата · Съёмка». Если снимка нет — в поле съёмки плейсхолдер.
+     */
+    public static String formatSatelliteCaption(SatelliteImage img) {
+        String plan = img.getPlanDate() != null ? img.getPlanDate().format(DATE_FORMAT) : NO_DATA;
+        String actual = img.getActualDate() != null ? img.getActualDate().format(DATE_FORMAT) : NO_DATA;
+        return String.format("%s\nПлановая дата: %s · Съёмка: %s",
+                orNoData(img.getDescription()), plan, actual);
     }
 
     /**
@@ -452,12 +491,7 @@ public final class PdfUIHelper {
             cell.setHorizontalAlignment(Element.ALIGN_CENTER);
 
             try {
-                String descriptionText = String.format("%s\nПлановая дата: %s | Дата снимка: %s",
-                        satImg.getDescription(),
-                        satImg.getPlanDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy")),
-                        satImg.getActualDate() != null ? satImg.getActualDate().format(DateTimeFormatter.ofPattern("dd.MM.yyyy")) : "---"
-                );
-                Paragraph p = new Paragraph(descriptionText, FONT_TABLE_BODY);
+                Paragraph p = new Paragraph(formatSatelliteCaption(satImg), FONT_TABLE_BODY);
                 p.setAlignment(Element.ALIGN_CENTER);
                 p.setSpacingAfter(10f);
                 cell.addElement(p);
@@ -468,14 +502,10 @@ public final class PdfUIHelper {
                     img.scaleToFit(500f, 1000f);
                     img.setAlignment(Image.ALIGN_CENTER);
                     cell.addElement(img);
-                } else {
-                    Paragraph missing = new Paragraph("Снимок не найден для даты: " + satImg.getPlanDate(), FONT_TABLE_BODY);
-                    missing.setAlignment(Element.ALIGN_CENTER);
-                    cell.addElement(missing);
                 }
             } catch (Exception e) {
                 log.error("Error rendering satellite image: {}", e.getMessage());
-                cell.addElement(new Phrase("Ошибка отрисовки снимка"));
+                cell.addElement(new Phrase("Ошибка отрисовки снимка", FONT_TABLE_BODY));
             }
             table.addCell(cell);
             document.add(table);
