@@ -11,14 +11,17 @@ import com.viking.generator.util.ImageUtils;
 import com.viking.generator.util.JsonDataParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -115,19 +118,24 @@ public class SatelliteStrategy implements ImageProviderStrategy {
         return SourceType.SATELLITE;
     }
 
+    /** Сколько дней кэш history.json считается актуальным. */
+    private static final int METADATA_TTL_DAYS = 30;
+
     public Map<Long, FieldSpectralResponse> collectMetadata(Set<Long> allIds) {
         Map<Long, FieldSpectralResponse> allMeta = new ConcurrentHashMap<>();
         List<Long> idsToFetch = new ArrayList<>();
 
         for (Long id : allIds) {
             Path historyFile = cachePath.resolve(id.toString()).resolve("history.json");
-            if (Files.exists(historyFile)) {
+            if (isHistoryFresh(historyFile)) {
                 FieldSpectralResponse local = readMetadataFromDisk(historyFile);
                 if (local != null) {
                     allMeta.put(id, local);
                     continue;
                 }
             }
+            // Кэш отсутствует или устарел (старее METADATA_TTL_DAYS) — перезапрашиваем у API,
+            // чтобы догнать свежие сканы, появившиеся после последней синхронизации.
             idsToFetch.add(id);
         }
 
@@ -137,8 +145,19 @@ public class SatelliteStrategy implements ImageProviderStrategy {
         return allMeta;
     }
 
+    private boolean isHistoryFresh(Path historyFile) {
+        if (!Files.exists(historyFile)) return false;
+        try {
+            Instant modified = Files.getLastModifiedTime(historyFile).toInstant();
+            return modified.isAfter(Instant.now().minus(METADATA_TTL_DAYS, ChronoUnit.DAYS));
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
     private void fetchRemoteBatch(List<Long> idsToFetch, Map<Long, FieldSpectralResponse> allMeta) {
         Semaphore semaphore = new Semaphore(3);
+        AtomicInteger processed = new AtomicInteger(0);
         log.info("Fetching metadata from API for {} fields", idsToFetch.size());
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             for (int i = 0; i < idsToFetch.size(); i += 5) {
@@ -171,6 +190,8 @@ public class SatelliteStrategy implements ImageProviderStrategy {
                         if (!toSave.isEmpty()) {
                             saveMetadata(toSave);
                         }
+                        log.info("Metadata sync progress: {}/{} fields updated",
+                                processed.addAndGet(batch.size()), idsToFetch.size());
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         log.error("Synchronization interrupted");
