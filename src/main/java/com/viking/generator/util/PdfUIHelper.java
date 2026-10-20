@@ -213,44 +213,41 @@ public final class PdfUIHelper {
             return new PdfPTable(1);
         }
 
-        // 1. Оставляем только операции с ТМЦ
+        // Оставляем только операции с ТМЦ (порядок — как раньше)
         List<OperationTableRow> opsWithTmc = operations.stream()
-                .filter(op -> op.tmcItemList() != null && !op.tmcItemList().isEmpty())
+                .filter(op -> op.hasTmcList())
                 .toList().reversed();
 
         if (opsWithTmc.isEmpty()) {
             return new PdfPTable(1);
         }
 
-        Map<Long, List<String>> tmcValues = new LinkedHashMap<>();
+        // Вертикальная раскладка: одна строка = один расход ТМЦ.
+        // Так таблица читаема при любом количестве позиций (раньше под каждую
+        // позицию отводилась колонка — у ТК14-12 выходило 29 узких колонок).
+        float[] columnWidths = {5f, 24f, 41f, 15f, 15f};
+        PdfPTable table = createStandardTable(5, columnWidths);
+
+        String[] headers = {"№", "Операция/дата", "ТМЦ (наименование)", "Кол-во", "Ед. изм."};
+        for (String h : headers) {
+            table.addCell(createStyledCell(new Phrase(h, FONT_TABLE_TITLE), Color.LIGHT_GRAY, Element.ALIGN_CENTER));
+        }
+
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd.MM.yy HH:mm");
+        int num = 1;
         for (OperationTableRow op : opsWithTmc) {
+            String opDate = (op.start() != null) ? op.start().format(dtf) : "";
+            String opLabel = op.operationName() + (opDate.isEmpty() ? "" : ", " + opDate);
             for (TmcItem item : op.tmcItemList()) {
-                tmcValues.computeIfAbsent(item.id(), k -> new ArrayList<>())
-                        .add(item.formatForPassport());
-            }
-        }
-        tmcValues.values().forEach(Collections::reverse);
-
-        // 3. Определяем количество колонок и строк
-        int columnCount = tmcValues.size();
-        int maxRows = tmcValues.values().stream()
-                .mapToInt(List::size)
-                .max()
-                .orElse(0);
-
-        PdfPTable table = createStandardTable(columnCount, null);
-        int colNum = 1;
-        for (Long id : tmcValues.keySet()) {
-            table.addCell(createStyledCell(
-                    new Phrase("ТМЦ №" + colNum++ + "/расход", FONT_TABLE_TITLE),
-                    Color.LIGHT_GRAY,
-                    Element.ALIGN_CENTER));
-        }
-
-        for (int row = 0; row < maxRows; row++) {
-            for (List<String> values : tmcValues.values()) {
-                String text = row < values.size() ? values.get(row) : "";
-                table.addCell(createStyledCell(new Phrase(text, FONT_TABLE_BODY), null, Element.ALIGN_CENTER));
+                table.addCell(createStyledCell(new Phrase(String.valueOf(num++), FONT_TABLE_BODY), null, Element.ALIGN_CENTER));
+                table.addCell(createStyledCell(new Phrase(opLabel, FONT_TABLE_BODY), null, Element.ALIGN_LEFT));
+                table.addCell(createStyledCell(new Phrase(item.name() != null ? item.name() : "", FONT_TABLE_BODY), null, Element.ALIGN_LEFT));
+                table.addCell(createStyledCell(
+                        new Phrase(item.amount() != null ? String.format("%.2f", item.amount()) : "", FONT_TABLE_BODY),
+                        null, Element.ALIGN_RIGHT));
+                table.addCell(createStyledCell(
+                        new Phrase(item.unit() != null ? item.unit() : "", FONT_TABLE_BODY),
+                        null, Element.ALIGN_CENTER));
             }
         }
 
