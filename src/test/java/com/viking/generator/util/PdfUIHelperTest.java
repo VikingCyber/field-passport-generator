@@ -65,34 +65,37 @@ class PdfUIHelperTest {
 
         // 5 колонок: № | Операция/дата | ТМЦ (наименование) | Кол-во | Ед. изм.
         assertEquals(5, table.getNumberOfColumns());
-        // шапка + 3 расхода (операция без ТМЦ отфильтрована)
-        assertEquals(4, table.getRows().size());
+        // Заголовок секции + шапка + 3 расхода (операция без ТМЦ отфильтрована)
+        assertEquals(5, table.getRows().size());
 
-        // Шапка
-        assertEquals("№", cell(table, 0, 0));
-        assertEquals("Операция/дата", cell(table, 0, 1));
-        assertEquals("ТМЦ (наименование)", cell(table, 0, 2));
-        assertEquals("Кол-во", cell(table, 0, 3));
-        assertEquals("Ед. изм.", cell(table, 0, 4));
+        // Заголовок секции вшит в таблицу — не должен отрываться от данных
+        assertEquals("Расход ТМЦ:", cell(table, 0, 0));
+
+        // Шапка колонок
+        assertEquals("№", cell(table, 1, 0));
+        assertEquals("Операция/дата", cell(table, 1, 1));
+        assertEquals("ТМЦ (наименование)", cell(table, 1, 2));
+        assertEquals("Кол-во", cell(table, 1, 3));
+        assertEquals("Ед. изм.", cell(table, 1, 4));
 
         // Строка 1 — опять операции идут в обратном порядке, как и раньше
-        assertEquals("1", cell(table, 1, 0));
-        assertEquals("Внесение удобрений, 10.05.26 08:00", cell(table, 1, 1));
-        assertEquals("Аммиачная селитра", cell(table, 1, 2));
-        assertEquals(fmt(100.0), cell(table, 1, 3));
-        assertEquals("кг", cell(table, 1, 4));
+        assertEquals("1", cell(table, 2, 0));
+        assertEquals("Внесение удобрений, 10.05.26 08:00", cell(table, 2, 1));
+        assertEquals("Аммиачная селитра", cell(table, 2, 2));
+        assertEquals(fmt(100.0), cell(table, 2, 3));
+        assertEquals("кг", cell(table, 2, 4));
 
         // Строки 2-3 — оба ТМЦ операции «Защита растений»
-        assertEquals("2", cell(table, 2, 0));
-        assertEquals("Защита растений, 18.05.26 10:00", cell(table, 2, 1));
-        assertEquals("Гербицид", cell(table, 2, 2));
-        assertEquals(fmt(2.5), cell(table, 2, 3));
-        assertEquals("л", cell(table, 2, 4));
-
-        assertEquals("3", cell(table, 3, 0));
-        assertEquals("Прилипатель", cell(table, 3, 2));
-        assertEquals(fmt(0.5), cell(table, 3, 3));
+        assertEquals("2", cell(table, 3, 0));
+        assertEquals("Защита растений, 18.05.26 10:00", cell(table, 3, 1));
+        assertEquals("Гербицид", cell(table, 3, 2));
+        assertEquals(fmt(2.5), cell(table, 3, 3));
         assertEquals("л", cell(table, 3, 4));
+
+        assertEquals("3", cell(table, 4, 0));
+        assertEquals("Прилипатель", cell(table, 4, 2));
+        assertEquals(fmt(0.5), cell(table, 4, 3));
+        assertEquals("л", cell(table, 4, 4));
     }
 
     @Test
@@ -105,11 +108,11 @@ class PdfUIHelperTest {
         PdfPTable table = PdfUIHelper.createTmcTable(List.of(op));
 
         assertEquals(5, table.getNumberOfColumns());
-        assertEquals(2, table.getRows().size()); // шапка + 1 расход
-        assertEquals("1", cell(table, 1, 0));
-        assertEquals("Протравитель", cell(table, 1, 2)); // наименование на месте
-        assertEquals("", cell(table, 1, 3)); // кол-во пустое (amount = null)
-        assertEquals("", cell(table, 1, 4)); // единица пустая (unit = null)
+        assertEquals(3, table.getRows().size()); // заголовок + шапка + 1 расход
+        assertEquals("1", cell(table, 2, 0));
+        assertEquals("Протравитель", cell(table, 2, 2)); // наименование на месте
+        assertEquals("", cell(table, 2, 3)); // кол-во пустое (amount = null)
+        assertEquals("", cell(table, 2, 4)); // единица пустая (unit = null)
     }
 
     @Test
