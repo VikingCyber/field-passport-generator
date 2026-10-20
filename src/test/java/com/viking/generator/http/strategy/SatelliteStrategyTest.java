@@ -13,14 +13,15 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDate;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -56,23 +57,24 @@ class SatelliteStrategyTest {
     }
 
     @Test
-    @DisplayName("Должен перезапрашивать history.json из API, даже если файл уже есть на диске")
-    void shouldRefetchHistoryEvenWhenCachedFileExists() throws Exception {
-        // 1. Подготовка: создаём "старый" history.json на диске
+    @DisplayName("Устаревший history.json (старше 30 дней) перезапрашивается из API")
+    void shouldRefetchStaleHistoryFromApi() throws Exception {
         Long fieldId = 495356L;
-        Path fieldDir = cachePath.resolve(fieldId.toString());
-        Files.createDirectories(fieldDir);
-        Path historyFile = fieldDir.resolve("history.json");
+        Path historyFile = createHistoryFile(fieldId, "2026-06-01");
 
-        // Записываем старые данные (только до июня 2026, как в реальном кэше)
+        // Делаем кэш «старым» — старше нашего TTL в 30 дней
+        Files.setLastModifiedTime(historyFile,
+                FileTime.from(Instant.now().minus(45, ChronoUnit.DAYS)));
+
+        // Старое содержимое на диске (мок-парсер его вернёт, если запросят)
         SatelliteScan oldScan = new SatelliteScan(
                 "old-id", "GoogleEarth", "/ndvi/...", "2026-06-01",
                 0.0, null, null, null, null
         );
-        FieldSpectralResponse oldData = new FieldSpectralResponse(fieldId, List.of(oldScan));
-        when(parser.parse(historyFile, FieldSpectralResponse.class)).thenReturn(oldData);
+        when(parser.parse(historyFile, FieldSpectralResponse.class))
+                .thenReturn(new FieldSpectralResponse(fieldId, List.of(oldScan)));
 
-        // 2. Мокаем API: возвращаем свежие данные (до октября 2026)
+        // Свежий ответ API (октябрь 2026)
         SatelliteScan freshScan = new SatelliteScan(
                 "fresh-id", "GoogleEarth", "/ndvi/...", "2026-10-19",
                 0.0, null, null, null, null
@@ -81,29 +83,42 @@ class SatelliteStrategyTest {
         when(loader.fetchSpectralData(anyList(), anyString(), anyString()))
                 .thenReturn(Map.of(fieldId, freshData));
 
-        // 3. Выполняем collectMetadata
         Map<Long, FieldSpectralResponse> result = strategy.collectMetadata(Set.of(fieldId));
 
-        // 4. Проверки
-        // 4.1. API был вызван (раньше пропускался из-за существующего файла)
+        // API был вызван, несмотря на наличие кэша
         verify(loader, atLeastOnce()).fetchSpectralData(
-                argThat(ids -> ids.contains(fieldId)),
-                anyString(), anyString()
-        );
-
-        // 4.2. Результат содержит свежие данные (с октябрьским сканом)
-        assertTrue(result.containsKey(fieldId), "Результат должен содержать поле " + fieldId);
+                argThat(ids -> ids.contains(fieldId)), anyString(), anyString());
+        // В результат пошли свежие данные
         FieldSpectralResponse response = result.get(fieldId);
         assertFalse(response.data().isEmpty(), "Данные не должны быть пустыми");
-        assertTrue(
-                response.data().stream().anyMatch(s -> s.date().equals("2026-10-19")),
-                "Должен присутствовать свежий скан от 2026-10-19"
-        );
+        assertTrue(response.data().stream().anyMatch(s -> s.date().equals("2026-10-19")),
+                "Должен присутствовать свежий скан от 2026-10-19");
     }
 
     @Test
-    @DisplayName("Должен перезапрашивать для полей без history.json на диске")
-    void shouldFetchForNewFieldsWithoutCachedHistory() {
+    @DisplayName("Свежий history.json НЕ перезапрашивается — берём из кэша")
+    void shouldReuseFreshHistoryFromDisk() throws Exception {
+        Long fieldId = 495356L;
+        Path historyFile = createHistoryFile(fieldId, "2026-10-01");
+
+        SatelliteScan cachedScan = new SatelliteScan(
+                "cached-id", "GoogleEarth", "/ndvi/...", "2026-10-01",
+                0.0, null, null, null, null
+        );
+        when(parser.parse(historyFile, FieldSpectralResponse.class))
+                .thenReturn(new FieldSpectralResponse(fieldId, List.of(cachedScan)));
+
+        Map<Long, FieldSpectralResponse> result = strategy.collectMetadata(Set.of(fieldId));
+
+        // API не вызывается — кэш свежий
+        verify(loader, never()).fetchSpectralData(anyList(), anyString(), anyString());
+        assertTrue(result.containsKey(fieldId));
+        assertTrue(result.get(fieldId).data().stream().anyMatch(s -> s.date().equals("2026-10-01")));
+    }
+
+    @Test
+    @DisplayName("Для полей без history.json данные всегда запрашиваются из API")
+    void shouldFetchForFieldsWithoutCachedHistory() {
         Long newFieldId = 999999L;
 
         SatelliteScan scan = new SatelliteScan(
@@ -118,5 +133,13 @@ class SatelliteStrategyTest {
 
         verify(loader, atLeastOnce()).fetchSpectralData(anyList(), anyString(), anyString());
         assertTrue(result.containsKey(newFieldId));
+    }
+
+    private Path createHistoryFile(Long fieldId, String scanDate) throws IOException {
+        Path fieldDir = cachePath.resolve(fieldId.toString());
+        Files.createDirectories(fieldDir);
+        Path historyFile = fieldDir.resolve("history.json");
+        Files.writeString(historyFile, "{}");
+        return historyFile;
     }
 }
