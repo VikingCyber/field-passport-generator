@@ -128,20 +128,25 @@ public class PdfGeneratorService implements PassportGeneratorService {
         document.add(PdfUIHelper.createSectionTitle("Раздел 1. Общая информация."));
 
         document.add(PdfUIHelper.createParagraph(
-                "1.1. Подразделение: " + passport.generalInfo().department()));
+                "1.1. Подразделение: " + PdfUIHelper.orNoData(passport.generalInfo().department())));
         document.add(PdfUIHelper.createParagraph(
-                "1.2. Наименование: " + passport.generalInfo().fieldName()));
+                "1.2. Наименование: " + PdfUIHelper.orNoData(passport.generalInfo().fieldName())));
         document.add(PdfUIHelper.createParagraph("1.3. Текущая площадь: " + PdfUIHelper.formatArea(
                 passport.generalInfo().fieldArea()) + " Га"));
 
         document.add(PdfUIHelper.createParagraph(
                 "1.4. Севооборот в " + passport.generalInfo().year() + " году:"));
 
-        for (var rotation : passport.generalInfo().rotations()) {
-            document.add(PdfUIHelper.createBulletPoint(rotation.crop()));
-            document.add(PdfUIHelper.createBulletPoint(rotation.variety()));
-            document.add(
-                    PdfUIHelper.createBulletPoint(rotation.reproduction()));
+        var rotations = passport.generalInfo().rotations();
+        if (rotations == null || rotations.isEmpty()) {
+            document.add(PdfUIHelper.createParagraph(PdfUIHelper.NO_DATA));
+        } else {
+            for (var rotation : rotations) {
+                document.add(PdfUIHelper.createBulletPoint(PdfUIHelper.orNoData(rotation.crop())));
+                document.add(PdfUIHelper.createBulletPoint(PdfUIHelper.orNoData(rotation.variety())));
+                document.add(
+                        PdfUIHelper.createBulletPoint(PdfUIHelper.orNoData(rotation.reproduction())));
+            }
         }
 
         document.setPageSize(PageSize.A4.rotate());
@@ -190,8 +195,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
         List<SatelliteImage> satelliteImages = passport.satelliteImages();
 
         if (satelliteImages == null || satelliteImages.isEmpty()) {
-            document.add(PdfUIHelper.createParagraph(
-                    "Данные спутникового мониторинга не были загружены."));
+            document.add(PdfUIHelper.createParagraph(PdfUIHelper.NO_DATA));
         } else {
             PdfUIHelper.addSatelliteImagesColumn(document, satelliteImages);
         }
