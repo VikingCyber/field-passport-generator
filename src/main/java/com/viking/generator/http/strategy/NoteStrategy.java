@@ -6,6 +6,9 @@ import com.viking.generator.http.NoteImageLoader;
 import com.viking.generator.model.media.ImageSource;
 import com.viking.generator.model.media.NoteImage;
 import com.viking.generator.model.common.SourceType;
+import com.viking.generator.util.HeicConverter;
+import com.viking.generator.util.ImageUtils;
+import com.viking.generator.util.ImageUtils.ImageKind;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,12 +27,14 @@ public class NoteStrategy implements ImageProviderStrategy {
     private final Path cachePath;
     private final String subDir;
     private final String defaultExt;
+    private final HeicConverter heicConverter;
 
-    public NoteStrategy(NoteImageLoader loader, NoteConfig config) {
+    public NoteStrategy(NoteImageLoader loader, NoteConfig config, HeicConverter heicConverter) {
         this.loader = loader;
         this.cachePath = config.cachePath();
         this.subDir = config.dir();
         this.defaultExt = config.extension();
+        this.heicConverter = heicConverter;
     }
 
     @Override
@@ -65,10 +70,12 @@ public class NoteStrategy implements ImageProviderStrategy {
             // Вызываем твой loader, который внутри использует виртуальные потоки
             LoadResult result = loader.load(batch);
 
-            // 3. Сохраняем то, что скачалось
+            // 3. Сохраняем то, что скачалось (PDF-вложения пропускаем, HEIC конвертируем в JPEG)
             result.images().forEach((id, resource) -> {
+                byte[] data = toSupportedPhoto(id, resource.data());
+                if (data == null) return;
                 Path target = resolvePath(cachePath, id +".*", id + "." + defaultExt, subDir);
-                writeToDisk(target, resource.data());
+                writeToDisk(target, data);
             });
 
             totalLinksFound += result.linksFound();
@@ -86,12 +93,44 @@ public class NoteStrategy implements ImageProviderStrategy {
         String id = note.getId();
 
         Path localPath = resolvePath(cachePath, id + ".*", id + "." + defaultExt, subDir);
-        readFromDisk(localPath).or(() -> Optional.ofNullable(loader.load(List.of(id)).images().get(id))
-                    .map(resource -> {
-                        byte[] data = resource.data();
-                        writeToDisk(localPath, data);
-                        return data;
-                    })).ifPresent(note::setImageBytes);
+        Optional<byte[]> cached = readFromDisk(localPath);
+        Optional<byte[]> raw = cached.isPresent()
+                ? cached
+                : Optional.ofNullable(loader.load(List.of(id)).images().get(id))
+                        .map(resource -> {
+                            byte[] data = resource.data();
+                            writeToDisk(localPath, data);
+                            return data;
+                        });
+
+        raw.ifPresent(bytes -> note.setImageBytes(toSupportedPhoto(id, bytes)));
+    }
+
+    /**
+     * Приводит скачанные байты вложения к формату, который можно встроить в PDF:
+     * классические растры (JPEG/PNG/GIF/BMP) оставляем как есть, HEIC конвертируем
+     * в JPEG через ffmpeg, а всё остальное (PDF-документы и т.п.) пропускаем.
+     */
+    private byte[] toSupportedPhoto(String id, byte[] raw) {
+        if (raw == null) return null;
+        ImageKind kind = ImageUtils.detectKind(raw);
+        switch (kind) {
+            case JPEG, PNG, GIF, BMP -> { return raw; }
+            case HEIC -> {
+                byte[] jpeg = heicConverter.toJpeg(raw);
+                if (jpeg != null) {
+                    log.info("HEIC {} конвертирован в JPEG ({} байт)", id, jpeg.length);
+                    return jpeg;
+                }
+                log.warn("Не удалось конвертировать HEIC {} — фото пропущено", id);
+                return null;
+            }
+            default -> {
+                log.info("Пропускаем вложение {} (формат {}, {} байт, не изображение)",
+                        id, kind, raw.length);
+                return null;
+            }
+        }
     }
 
     @Override

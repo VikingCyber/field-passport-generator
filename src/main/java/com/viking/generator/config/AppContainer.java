@@ -14,6 +14,7 @@ import com.viking.generator.http.strategy.SatelliteStrategy;
 import com.viking.generator.mapper.*;
 import com.viking.generator.service.*;
 import com.viking.generator.service.orchestration.PassportOrchestrator;
+import com.viking.generator.util.HeicConverter;
 import com.viking.generator.util.JsonDataParser;
 import java.util.List;
 
@@ -123,7 +124,7 @@ public class AppContainer {
                 paths.notesExtension(),
                 paths.cacheBaseDir()
         );
-        return new NoteStrategy(loader, noteConfig);
+        return new NoteStrategy(loader, noteConfig, new HeicConverter());
     }
 
     private SatelliteStrategy createSatelliteStrategy(StoragePathsConfig paths, AgroApiConfig agro,
