@@ -39,6 +39,25 @@ public class ImageUtils {
         return ImageKind.UNKNOWN;
     }
 
+    /**
+     * Расширение файла (без точки), соответствующее реальному формату.
+     * Используется, чтобы кэш-файлы вложений сохранялись с честным расширением,
+     * а не все под .png. Для нераспознанного формата — {@code null}.
+     */
+    public static String extensionFor(ImageKind kind) {
+        if (kind == null) return null;
+        return switch (kind) {
+            case JPEG -> "jpg";
+            case PNG -> "png";
+            case GIF -> "gif";
+            case BMP -> "bmp";
+            case WEBP -> "webp";
+            case HEIC -> "heic";
+            case PDF -> "pdf";
+            case UNKNOWN -> null;
+        };
+    }
+
     private static boolean startsWith(byte[] data, int offset, int... expected) {
         if (offset + expected.length > data.length) return false;
         for (int i = 0; i < expected.length; i++) {

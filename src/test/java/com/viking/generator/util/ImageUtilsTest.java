@@ -77,6 +77,20 @@ class ImageUtilsTest {
         assertEquals(ImageKind.UNKNOWN, ImageUtils.detectKind("просто текст".getBytes(StandardCharsets.UTF_8)));
     }
 
+    @Test
+    @DisplayName("extensionFor возвращает честное расширение по формату")
+    void extensionForMapsKindsToExtensions() {
+        assertEquals("jpg", ImageUtils.extensionFor(ImageKind.JPEG));
+        assertEquals("png", ImageUtils.extensionFor(ImageKind.PNG));
+        assertEquals("gif", ImageUtils.extensionFor(ImageKind.GIF));
+        assertEquals("bmp", ImageUtils.extensionFor(ImageKind.BMP));
+        assertEquals("webp", ImageUtils.extensionFor(ImageKind.WEBP));
+        assertEquals("heic", ImageUtils.extensionFor(ImageKind.HEIC));
+        assertEquals("pdf", ImageUtils.extensionFor(ImageKind.PDF));
+        assertEquals(null, ImageUtils.extensionFor(ImageKind.UNKNOWN));
+        assertEquals(null, ImageUtils.extensionFor(null));
+    }
+
     private static void writeAscii(byte[] data, int offset, String s) {
         for (int i = 0; i < s.length(); i++) {
             data[offset + i] = (byte) s.charAt(i);
