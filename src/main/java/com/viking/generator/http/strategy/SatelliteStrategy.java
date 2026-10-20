@@ -117,19 +117,9 @@ public class SatelliteStrategy implements ImageProviderStrategy {
 
     public Map<Long, FieldSpectralResponse> collectMetadata(Set<Long> allIds) {
         Map<Long, FieldSpectralResponse> allMeta = new ConcurrentHashMap<>();
-        List<Long> idsToFetch = new ArrayList<>();
-
-        for (Long id : allIds) {
-            Path historyFile = cachePath.resolve(id.toString()).resolve("history.json");
-            if (Files.exists(historyFile)) {
-                FieldSpectralResponse local = readMetadataFromDisk(historyFile);
-                if (local != null) {
-                    allMeta.put(id, local);
-                    continue;
-                }
-            }
-            idsToFetch.add(id);
-        }
+        // Всегда загружаем свежие метаданные для всех полей — закэшированные history.json
+        // устаревают, так как на сервере появляются новые сканы.
+        List<Long> idsToFetch = new ArrayList<>(allIds);
 
         if (!idsToFetch.isEmpty()) {
             fetchRemoteBatch(idsToFetch, allMeta);
