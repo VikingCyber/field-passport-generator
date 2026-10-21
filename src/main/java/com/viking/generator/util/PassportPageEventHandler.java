@@ -43,6 +43,15 @@ public class PassportPageEventHandler extends PdfPageEventHelper {
     /** Отступ нижней строки колонтитула от нижнего края страницы. */
     private static final float FOOTER_BOTTOM_OFFSET = 18f;
 
+    /**
+     * Гарантированный зазор (в пунктах) между нижним краем шапки и верхней границей
+     * контента. Без него на альбомных (повёрнутых) страницах шапка заполняет всё верхнее
+     * поле и нижним краем ложится ровно на границу контента — а продолжающаяся на новую
+     * страницу таблица начинает повторную шапку ровно в этой точке, и картинка
+     * закрашивает её верхнюю границу.
+     */
+    static final float HEADER_GAP = 10f;
+
     /** Фирменная шапка из classpath; {@code null}, если ресурс не загрузился. */
     private Image headerImage;
 
@@ -65,9 +74,10 @@ public class PassportPageEventHandler extends PdfPageEventHelper {
     }
 
     /**
-     * Фирменная шапка сверху страницы: вписывается в ширину текстовой области,
-     * но не выше верхнего поля, чтобы не наползать на содержимое (на портретных
-     * страницах получается в полную ширину, на альбомных ограничена высотой).
+     * Фирменная шапка сверху страницы: вписывается в ширину текстовой области и,
+     * что важнее, не выходит за верхнее поле — нижний край шапки всегда выше верхней
+     * границы контента минимум на {@link #HEADER_GAP} пунктов, чтобы не закрашивать
+     * верхние границы таблиц, продолжающихся с предыдущей страницы.
      */
     private void drawHeader(PdfWriter writer) {
         if (headerImage == null) {
@@ -76,23 +86,53 @@ public class PassportPageEventHandler extends PdfPageEventHelper {
         Rectangle page = writer.getPageSize();
         float pageWidth = page.getWidth();
         float pageHeight = page.getHeight();
-        float left = PdfUIHelper.MARGIN_LEFT;
-        float availableWidth = pageWidth - left - PdfUIHelper.MARGIN_RIGHT;
-        float aspect = headerImage.getWidth() / headerImage.getHeight();
-        float height = availableWidth / aspect;
-        if (height > PdfUIHelper.MARGIN_TOP) {
-            height = PdfUIHelper.MARGIN_TOP;
+        float imageWidth = headerImage.getWidth();
+        float imageHeight = headerImage.getHeight();
+        if (Float.isNaN(imageWidth) || imageWidth <= 0f
+                || Float.isNaN(imageHeight) || imageHeight <= 0f) {
+            log.warn("Некорректные размеры шапки ({}x{}) — пропускаю отрисовку", imageWidth, imageHeight);
+            return;
         }
-        float width = height * aspect;
-        float x = left + (availableWidth - width) / 2f;
-        float y = pageHeight - height;
+        Rectangle rect = headerPlacement(pageWidth, pageHeight, imageWidth, imageHeight);
+        if (rect == null) {
+            return;
+        }
 
-        headerImage.scaleAbsolute(width, height);
-        headerImage.setAbsolutePosition(x, y);
+        headerImage.scaleAbsolute(rect.getWidth(), rect.getHeight());
+        headerImage.setAbsolutePosition(rect.getLeft(), rect.getBottom());
         PdfContentByte cb = writer.getDirectContent();
         cb.saveState();
         cb.addImage(headerImage);
         cb.restoreState();
+    }
+
+    /**
+     * Прямоугольник шапки в координатах PDF (нижний левый угол — начало координат):
+     * сохраняет пропорции картинки, вписывается в ширину текстовой области и в высоту
+     * верхнего поля с зазором {@link #HEADER_GAP}. Возвращает {@code null}, если
+     * пропорции некорректны. Вынесено в статический метод для юнит-тестов геометрии.
+     */
+    static Rectangle headerPlacement(float pageWidth, float pageHeight,
+            float imageWidth, float imageHeight) {
+        if (!Float.isFinite(imageWidth) || imageWidth <= 0f
+                || !Float.isFinite(imageHeight) || imageHeight <= 0f) {
+            return null;
+        }
+        float availableWidth = pageWidth - PdfUIHelper.MARGIN_LEFT - PdfUIHelper.MARGIN_RIGHT;
+        if (availableWidth <= 0f) {
+            return null;
+        }
+        float aspect = imageWidth / imageHeight;
+        float maxHeight = PdfUIHelper.MARGIN_TOP - HEADER_GAP;
+        float height = Math.min(availableWidth / aspect, maxHeight);
+        if (height <= 0f) {
+            return null;
+        }
+        float width = height * aspect;
+        float x = PdfUIHelper.MARGIN_LEFT + (availableWidth - width) / 2f;
+        float y = pageHeight - height;
+        // Rectangle хранит углы (llx, lly, urx, ury), а не (x, y, w, h).
+        return new Rectangle(x, y, x + width, y + height);
     }
 
     /**
