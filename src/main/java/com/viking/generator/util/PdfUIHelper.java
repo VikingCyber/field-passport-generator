@@ -35,10 +35,10 @@ public final class PdfUIHelper {
     private static final float CM_TO_PT = 28.35f;
     
     // Отступы страницы
-    private static final float MARGIN_LEFT = 3.0f * CM_TO_PT;
-    private static final float MARGIN_RIGHT = 1.5f * CM_TO_PT;
-    private static final float MARGIN_TOP = 2.0f * CM_TO_PT;
-    private static final float MARGIN_BOTTOM = 2.0f * CM_TO_PT;
+    public static final float MARGIN_LEFT = 3.0f * CM_TO_PT;
+    public static final float MARGIN_RIGHT = 1.5f * CM_TO_PT;
+    public static final float MARGIN_TOP = 2.0f * CM_TO_PT;
+    public static final float MARGIN_BOTTOM = 2.0f * CM_TO_PT;
     private static final float FIRST_LINE_INDENT = 0.75f * CM_TO_PT;
 
     /** Ширина текстовой области A4: страница минус поля (левое 3 см, правое 1.5 см). */
@@ -236,6 +236,15 @@ public final class PdfUIHelper {
 
     public static Document createDocument() {
         return new Document(PageSize.A4, MARGIN_LEFT, MARGIN_RIGHT, MARGIN_TOP, MARGIN_BOTTOM);
+    }
+
+    /**
+     * BaseFont обычного текстового шрифта (Arial) — для колонтитулов.
+     * Может вернуть {@code null}, если встроенный шрифт не загрузился
+     * (фолбэк на системный Helvetica); вызывающий сам решает про запасной вариант.
+     */
+    public static BaseFont textBaseFont() {
+        return FONT_TEXT.getBaseFont();
     }
 
     public static String formatArea(double area) {

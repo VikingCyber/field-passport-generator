@@ -9,6 +9,7 @@ import com.viking.generator.model.tables.OperationTableRow;
 import com.viking.generator.model.tables.TechJournalTableRow;
 import com.viking.generator.util.FileUtils;
 import com.viking.generator.util.NoteImageComparators;
+import com.viking.generator.util.PassportPageEventHandler;
 import com.viking.generator.util.PdfUIHelper;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
@@ -254,6 +255,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
                 BufferedOutputStream bos = new BufferedOutputStream(baos);
                 Document document = PdfUIHelper.createDocument()) {
             PdfWriter writer = PdfWriter.getInstance(document, bos);
+            writer.setPageEvent(new PassportPageEventHandler());
             document.open();
             fillSections(document, writer, passport, recorder);
             log.debug("Черновой проход завершён. Страниц: {}", writer.getCurrentPageNumber());
@@ -270,6 +272,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
                 BufferedOutputStream bos = new BufferedOutputStream(fos);
                 Document document = PdfUIHelper.createDocument()) {
             PdfWriter writer = PdfWriter.getInstance(document, bos);
+            writer.setPageEvent(new PassportPageEventHandler());
             document.open();
             log.debug("PDF документ открыт (финальный проход)");
 
