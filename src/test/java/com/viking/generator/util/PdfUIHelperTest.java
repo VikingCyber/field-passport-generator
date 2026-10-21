@@ -52,6 +52,16 @@ class PdfUIHelperTest {
     }
 
     @Test
+    @DisplayName("Строка содержания: название слева, номер страницы справа")
+    void tocLineLayout() {
+        PdfPTable line = PdfUIHelper.createTocLine("Раздел 1. Общая информация.", 2);
+
+        assertEquals(3, line.getNumberOfColumns());
+        assertEquals("Раздел 1. Общая информация.", cell(line, 0, 0));
+        assertEquals("2", cell(line, 0, 2));
+    }
+
+    @Test
     @DisplayName("orNoData: пустое или пробельное значение заменяется единым плейсхолдером")
     void orNoDataReplacesBlank() {
         assertEquals(PdfUIHelper.NO_DATA, PdfUIHelper.orNoData(null));

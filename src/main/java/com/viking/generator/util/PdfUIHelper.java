@@ -11,6 +11,7 @@ import org.openpdf.text.Font;
 import org.openpdf.text.Image;
 import org.openpdf.text.Rectangle;
 import org.openpdf.text.pdf.*;
+import org.openpdf.text.pdf.draw.DottedLineSeparator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -141,6 +142,51 @@ public final class PdfUIHelper {
         p.setAlignment(Element.ALIGN_CENTER);
         p.setSpacingAfter(SPACING_AFTER_TITLE);
         return p;
+    }
+
+    /**
+     * Строка содержания: название раздела слева, номер страницы справа,
+     * между ними — пунктирный лидер. Лидер рисуется сепаратором
+     * {@link DottedLineSeparator} в средней колонке, чтобы не зависеть
+     * от поддержки табуляции с заполнителем.
+     */
+    public static PdfPTable createTocLine(String title, int page) {
+        PdfPTable line = new PdfPTable(3);
+        line.setWidthPercentage(100f);
+        line.setSpacingAfter(2f);
+        try {
+            line.setWidths(new float[] {7f, 2f, 1f});
+        } catch (DocumentException e) {
+            log.error("Failed to set TOC line widths: {}", e.getMessage());
+        }
+
+        PdfPCell titleCell = new PdfPCell(new Phrase(title, FONT_TEXT));
+        titleCell.setBorder(Rectangle.NO_BORDER);
+        titleCell.setPadding(0f);
+        titleCell.setPaddingTop(2f);
+        titleCell.setPaddingBottom(2f);
+        titleCell.setHorizontalAlignment(Element.ALIGN_LEFT);
+        titleCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+
+        PdfPCell dotsCell = new PdfPCell();
+        dotsCell.setBorder(Rectangle.NO_BORDER);
+        dotsCell.setPadding(0f);
+        dotsCell.setPaddingBottom(4f);
+        dotsCell.addElement(new DottedLineSeparator());
+        dotsCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+
+        PdfPCell pageCell = new PdfPCell(new Phrase(String.valueOf(page), FONT_TEXT));
+        pageCell.setBorder(Rectangle.NO_BORDER);
+        pageCell.setPadding(0f);
+        pageCell.setPaddingTop(2f);
+        pageCell.setPaddingBottom(2f);
+        pageCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        pageCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+
+        line.addCell(titleCell);
+        line.addCell(dotsCell);
+        line.addCell(pageCell);
+        return line;
     }
 
     public static Paragraph createBulletPoint(String text) {
