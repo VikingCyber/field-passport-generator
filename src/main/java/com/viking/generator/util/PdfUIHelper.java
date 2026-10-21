@@ -231,8 +231,12 @@ public final class PdfUIHelper {
         // что «Расход ТМЦ:» и сама таблица не разъедутся по страницам.
         table.setKeepTogether(true);
 
-        PdfPCell sectionTitle = createStyledCell(new Phrase("Расход ТМЦ:", FONT_TABLE_TITLE),
+        // Заголовок — как в «Разделе 7»: шрифт заголовка секции, без рамки поверх,
+        // но вшит в таблицу, чтобы не отрывался от данных между страницами.
+        PdfPCell sectionTitle = createStyledCell(new Phrase("Расход ТМЦ:", FONT_TITLE),
                 null, Element.ALIGN_LEFT);
+        sectionTitle.setBorder(Rectangle.NO_BORDER);
+        sectionTitle.setPaddingBottom(10f);
         sectionTitle.setColspan(5);
         table.addCell(sectionTitle);
 
