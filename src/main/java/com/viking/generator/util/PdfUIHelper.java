@@ -46,6 +46,7 @@ public final class PdfUIHelper {
 
     // Отступы текста и заголовков
     private static final float SPACING_AFTER_TITLE = 12f;
+    private static final float SPACING_AFTER_PASSPORT_TITLE = 20f;
     private static final float SPACING_AFTER_PARAGRAPH = 8f;
     private static final float SPACING_AFTER_BULLET_POINT = 4f;
 
@@ -143,7 +144,8 @@ public final class PdfUIHelper {
     public static Paragraph createPassportTitle() {
         Paragraph p = new Paragraph("Паспорт поля", FONT_TEXT);
         p.setAlignment(Element.ALIGN_CENTER);
-        p.setSpacingAfter(SPACING_AFTER_TITLE);
+        // Увеличенный отступ до содержания: в образце шапку отделяют два пустых абзаца.
+        p.setSpacingAfter(SPACING_AFTER_PASSPORT_TITLE);
         return p;
     }
 
@@ -165,7 +167,8 @@ public final class PdfUIHelper {
         line.setLockedWidth(true);
         line.setTotalWidth(TOC_TEXT_WIDTH);
         line.setHorizontalAlignment(Element.ALIGN_LEFT);
-        line.setSpacingAfter(2f);
+        // Между строками содержания — увеличенный отступ (как в образце).
+        line.setSpacingAfter(5f);
         try {
             // Доли ширины в процентах от общей ширины таблицы: сумма ровно 100.
             line.setWidths(new float[] {
@@ -189,9 +192,10 @@ public final class PdfUIHelper {
         PdfPCell dotsCell = new PdfPCell();
         dotsCell.setBorder(Rectangle.NO_BORDER);
         dotsCell.setPadding(0f);
-        dotsCell.setPaddingBottom(3f);
+        // Колонка прижата к низу: точечный лидер идёт по базовой линии текста,
+        // как заполнитель Word в оглавлении образца.
         dotsCell.addElement(dots);
-        dotsCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        dotsCell.setVerticalAlignment(Element.ALIGN_BOTTOM);
 
         PdfPCell pageCell = new PdfPCell(new Phrase(pageText, FONT_TEXT));
         pageCell.setBorder(Rectangle.NO_BORDER);
