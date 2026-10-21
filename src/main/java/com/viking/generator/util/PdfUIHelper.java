@@ -473,7 +473,10 @@ public final class PdfUIHelper {
 
         try {
             if (imageBytes != null && imageBytes.length > 0) {
-                Image img = Image.getInstance(imageBytes);
+                // Фото в PDF не нужно в оригинальном разрешении (до 15 МБ): уменьшаем
+                // и пережимаем в JPEG. Ошибки декодирования отдаются оригиналом.
+                byte[] fitBytes = ImageOptimizer.forPhoto(imageBytes);
+                Image img = Image.getInstance(fitBytes);
 
                 float width = img.getWidth();
                 float height = img.getHeight();
@@ -639,7 +642,12 @@ public final class PdfUIHelper {
                 cell.addElement(p);
 
                 if (satImg.getImageBytes() != null) {
-                    Image img = Image.getInstance(satImg.getImageBytes());
+                    // Спутниковые снимки до 4 МБ в оригинале не нужны в PDF: уменьшаем
+                    // до ширины текстового поля и пережимаем в JPEG (снимки NDVI — RGBA,
+                    // фон склеивается в непрозрачный белый). Ошибка декодирования
+                    // вернёт исходные байты.
+                    byte[] fitBytes = ImageOptimizer.forSatellite(satImg.getImageBytes());
+                    Image img = Image.getInstance(fitBytes);
 
                     img.scaleToFit(500f, 1000f);
                     img.setAlignment(Image.ALIGN_CENTER);
