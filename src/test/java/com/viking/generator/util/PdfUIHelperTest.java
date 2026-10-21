@@ -9,6 +9,8 @@ import com.viking.generator.model.tables.OperationTableRow;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import org.openpdf.text.Element;
+import org.openpdf.text.Paragraph;
 import org.openpdf.text.pdf.PdfPCell;
 import org.openpdf.text.pdf.PdfPTable;
 
@@ -38,6 +40,15 @@ class PdfUIHelperTest {
 
         assertEquals("3 дня после СЗР\nПлановая дата: 18.05.2026 · Съёмка: " + PdfUIHelper.NO_DATA,
                 PdfUIHelper.formatSatelliteCaption(img));
+    }
+
+    @Test
+    @DisplayName("Шапка паспорта: «Паспорт поля» по центру, обычный шрифт текста")
+    void passportTitleCentered() {
+        Paragraph p = PdfUIHelper.createPassportTitle();
+
+        assertEquals("Паспорт поля", p.getContent());
+        assertEquals(Element.ALIGN_CENTER, p.getAlignment());
     }
 
     @Test

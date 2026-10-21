@@ -125,6 +125,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
     }
 
     private void fillDocument(Document document, FieldPassport passport, PdfWriter writer) {
+        document.add(PdfUIHelper.createPassportTitle());
         document.add(PdfUIHelper.createSectionTitle("Раздел 1. Общая информация."));
 
         document.add(PdfUIHelper.createParagraph(

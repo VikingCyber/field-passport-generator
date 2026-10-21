@@ -131,6 +131,18 @@ public final class PdfUIHelper {
         return p;
     }
 
+    /**
+     * Шапка паспорта: заголовок «Паспорт поля» по центру первой страницы.
+     * Соответствует образцу ПС10-01 (в Word — Times New Roman 12 pt обычный);
+     * в проекте используется обычный шрифт текста, чтобы не ломать общий стиль.
+     */
+    public static Paragraph createPassportTitle() {
+        Paragraph p = new Paragraph("Паспорт поля", FONT_TEXT);
+        p.setAlignment(Element.ALIGN_CENTER);
+        p.setSpacingAfter(SPACING_AFTER_TITLE);
+        return p;
+    }
+
     public static Paragraph createBulletPoint(String text) {
         Paragraph p = new Paragraph("• " + text, FONT_TEXT);
         p.setIndentationLeft(FIRST_LINE_INDENT);
