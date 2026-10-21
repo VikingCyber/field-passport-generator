@@ -70,8 +70,8 @@ public final class PdfUIHelper {
         Font tempTableBody;
 
         try {
-            BaseFont bfBold = BaseFont.createFont("fonts/NotoSans-Bold.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
-            BaseFont bfReg = BaseFont.createFont("fonts/NotoSans-Regular.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+            BaseFont bfBold = BaseFont.createFont("fonts/arialbd.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+            BaseFont bfReg = BaseFont.createFont("fonts/arial.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
 
             tempTitle = new Font(bfBold, 12);
             tempText = new Font(bfReg, 12);
