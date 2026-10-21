@@ -74,10 +74,12 @@ public class PassportPageEventHandler extends PdfPageEventHelper {
     }
 
     /**
-     * Фирменная шапка сверху страницы: вписывается в ширину текстовой области и,
-     * что важнее, не выходит за верхнее поле — нижний край шапки всегда выше верхней
-     * границы контента минимум на {@link #HEADER_GAP} пунктов, чтобы не закрашивать
-     * верхние границы таблиц, продолжающихся с предыдущей страницы.
+     * Фирменная шапка сверху страницы — как в образце «26ХХХХХ Письмо(БланкЧистыйЛист)»:
+     * растянута на всю ширину листа от левого края страницы ({@code positionH
+     * relativeFrom="page" align="left"}, extent 592.7×56.4 pt против страницы 595 pt).
+     * На повёрнутых (альбомных) страницах полная ширина дала бы картинку выше верхнего
+     * поля — там высота ограничивается зазором {@link #HEADER_GAP}, чтобы шапка не
+     * закрашивала верхнюю границу таблиц, продолжающихся с предыдущей страницы.
      */
     private void drawHeader(PdfWriter writer) {
         if (headerImage == null) {
@@ -107,10 +109,15 @@ public class PassportPageEventHandler extends PdfPageEventHelper {
     }
 
     /**
-     * Прямоугольник шапки в координатах PDF (нижний левый угол — начало координат):
-     * сохраняет пропорции картинки, вписывается в ширину текстовой области и в высоту
-     * верхнего поля с зазором {@link #HEADER_GAP}. Возвращает {@code null}, если
-     * пропорции некорректны. Вынесено в статический метод для юнит-тестов геометрии.
+     * Прямоугольник шапки в координатах PDF (нижний левый угол — начало координат).
+     * Повторяет раскладку образца: шапка растянута на всю ширину листа и прижата к левому
+     * краю страницы (в образце {@code positionH relativeFrom="page" align="left"}),
+     * сохраняя пропорции картинки. На портретной странице высота выходит впритык к верхнему
+     * полю (как extent из образца: 56.4–56.6 pt при поле 56.7 pt). На альбомной (повёрнутой)
+     * странице полная ширина дала бы картинку выше верхнего поля — высота ограничивается
+     * {@link #HEADER_GAP}-зазором, чтобы шапка не закрашивала верхнюю границу таблиц,
+     * продолжающихся с предыдущей страницы. Возвращает {@code null} при некорректных пропорциях.
+     * Вынесено в статический метод для юнит-тестов геометрии.
      */
     static Rectangle headerPlacement(float pageWidth, float pageHeight,
             float imageWidth, float imageHeight) {
@@ -118,18 +125,23 @@ public class PassportPageEventHandler extends PdfPageEventHelper {
                 || !Float.isFinite(imageHeight) || imageHeight <= 0f) {
             return null;
         }
-        float availableWidth = pageWidth - PdfUIHelper.MARGIN_LEFT - PdfUIHelper.MARGIN_RIGHT;
-        if (availableWidth <= 0f) {
+        // Проекция на всю ширину страницы по пропорциям картинки (образец: align="left" от края страницы).
+        float aspect = imageWidth / imageHeight;
+        float height = pageWidth / aspect;
+        if (height <= 0f) {
             return null;
         }
-        float aspect = imageWidth / imageHeight;
-        float maxHeight = PdfUIHelper.MARGIN_TOP - HEADER_GAP;
-        float height = Math.min(availableWidth / aspect, maxHeight);
+        // Полная ширина не всегда помещается в верхнее поле: на альбомной странице
+        // (842 pt) та же картинка стала бы выше поля (56.7 pt) и перекрыла бы контент.
+        float maxHeight = PdfUIHelper.MARGIN_TOP;
+        if (height > maxHeight) {
+            height = maxHeight - HEADER_GAP;
+        }
         if (height <= 0f) {
             return null;
         }
         float width = height * aspect;
-        float x = PdfUIHelper.MARGIN_LEFT + (availableWidth - width) / 2f;
+        float x = 0f; // прижата к левому краю страницы, как в образце
         float y = pageHeight - height;
         // Rectangle хранит углы (llx, lly, urx, ury), а не (x, y, w, h).
         return new Rectangle(x, y, x + width, y + height);
