@@ -1,12 +1,14 @@
 package com.viking.generator.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.openpdf.text.Image;
 import org.openpdf.text.Rectangle;
 
 /**
@@ -93,6 +95,34 @@ class PassportPageEventHandlerTest {
             float expectedAspect = IMG_W / IMG_H;
             assertEquals(expectedAspect, rect.getWidth() / rect.getHeight(), 0.05f);
         }
+    }
+
+    @Test
+    @DisplayName("Обе версии шапки загружаются и имеют одинаковые пропорции (геометрия размещения не меняется)")
+    void bothHeaderVersionsLoadWithSameAspect() {
+        Image portrait = PassportPageEventHandler.loadImage(PassportPageEventHandler.HEADER_RESOURCE);
+        Image landscape = PassportPageEventHandler.loadImage(PassportPageEventHandler.HEADER_LANDSCAPE_RESOURCE);
+        String msg = "Версия шапки не загрузилась из classpath";
+        assertNotNull(portrait, msg + ": " + PassportPageEventHandler.HEADER_RESOURCE);
+        assertNotNull(landscape, msg + ": " + PassportPageEventHandler.HEADER_LANDSCAPE_RESOURCE);
+        // Обе версии рисуются в один и тот же прямоугольник — их пропорции должны совпадать,
+        // иначе headerPlacement (вычисляемый по размерам картинки) даст разную раскладку.
+        float aspectPortrait = portrait.getWidth() / portrait.getHeight();
+        float aspectLandscape = landscape.getWidth() / landscape.getHeight();
+        assertEquals(aspectPortrait, aspectLandscape, 0.005f,
+                "Пропорции портретной и альбомной версий шапки должны совпадать");
+    }
+
+    @Test
+    @DisplayName("На альбомной странице рисуется альбомная версия шапки, на портретной — портретная")
+    void headerVersionMatchesPageOrientation() {
+        PassportPageEventHandler handler = new PassportPageEventHandler();
+        Image portrait = handler.headerImageFor(false);
+        Image landscape = handler.headerImageFor(true);
+        assertNotNull(portrait);
+        assertNotNull(landscape);
+        // Версии разные: альбомная сделана с уменьшенной надписью.
+        assertNotSame(portrait, landscape, "Портретная и альбомная версии шапки должны быть разными изображениями");
     }
 
     @Test

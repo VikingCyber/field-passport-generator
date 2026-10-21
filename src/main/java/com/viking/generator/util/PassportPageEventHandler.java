@@ -17,7 +17,10 @@ import java.io.InputStream;
  * Рисует колонтитулы на каждой странице PDF — по образцу
  * «26ХХХХХ Письмо(БланкЧистыйЛист).docx»:
  * <ul>
- *   <li>верхний колонтитул — фирменная шапка-логотип ({@code images/letterhead.jpg});</li>
+ *   <li>верхний колонтитул — фирменная шапка-логотип: на портретных страницах
+ *       {@code images/letterhead.jpg}, на альбомных — {@code images/letterhead_landscape.jpg},
+ *       где надпись «СХП ДАРЫ МАЛИНОВКИ агрохолдинг» выполнена тем же тёмно-зелёным
+ *       фирменным цветом, но уменьшена, чтобы на широком листе она не выглядела крупнее;</li>
  *   <li>нижний колонтитул — 3 строки реквизитов по центру (Arial 8 pt) и номер страницы,
  *       прижатый к правому углу (поле PAGE в образце отсутствует — нумерация добавлена).</li>
  * </ul>
@@ -28,6 +31,11 @@ import java.io.InputStream;
 public class PassportPageEventHandler extends PdfPageEventHelper {
 
     private static final Logger log = LoggerFactory.getLogger(PassportPageEventHandler.class);
+
+    /** Версия шапки для портретных страниц: надпись тёмно-зелёная, оригинальный размер. */
+    static final String HEADER_RESOURCE = "images/letterhead.jpg";
+    /** Версия шапки для альбомных (повёрнутых) страниц: надпись тёмно-зелёная и уменьшенная. */
+    static final String HEADER_LANDSCAPE_RESOURCE = "images/letterhead_landscape.jpg";
 
     /** Реквизиты организации — нижний колонтитул образца (Arial 8 pt, по центру). */
     private static final String[] FOOTER_LINES = {
@@ -52,18 +60,25 @@ public class PassportPageEventHandler extends PdfPageEventHelper {
      */
     static final float HEADER_GAP = 10f;
 
-    /** Фирменная шапка из classpath; {@code null}, если ресурс не загрузился. */
+    /** Фирменная шапка для портретных страниц; {@code null}, если ресурс не загрузился. */
     private Image headerImage;
+    /** Фирменная шапка для альбомных страниц (надпись уменьшена); {@code null}, если ресурс не загрузился. */
+    private Image headerImageLandscape;
 
     public PassportPageEventHandler() {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream("images/letterhead.jpg")) {
+        headerImage = loadImage(HEADER_RESOURCE);
+        headerImageLandscape = loadImage(HEADER_LANDSCAPE_RESOURCE);
+    }
+
+    static Image loadImage(String resource) {        try (InputStream is = PassportPageEventHandler.class.getClassLoader().getResourceAsStream(resource)) {
             if (is == null) {
-                log.warn("Не найден ресурс images/letterhead.jpg — верхний колонтитул (шапка) не будет нарисован");
-                return;
+                log.warn("Не найден ресурс {} — верхний колонтитул (шапка) не будет нарисован", resource);
+                return null;
             }
-            headerImage = Image.getInstance(is.readAllBytes());
+            return Image.getInstance(is.readAllBytes());
         } catch (Exception e) {
-            log.error("Не удалось загрузить шапку images/letterhead.jpg: {}", e.getMessage());
+            log.error("Не удалось загрузить шапку {}: {}", resource, e.getMessage());
+            return null;
         }
     }
 
@@ -71,6 +86,19 @@ public class PassportPageEventHandler extends PdfPageEventHelper {
     public void onEndPage(PdfWriter writer, Document document) {
         drawHeader(writer);
         drawFooter(writer);
+    }
+
+    /**
+     * Версия шапки для страницы: на альбомной — с уменьшенной надписью
+     * ({@link #headerImageLandscape}), на портретной — оригинального размера
+     * ({@link #headerImage}). При отсутствии нужной версии — фолбэк на другую.
+     */
+    Image headerImageFor(boolean landscape) {
+        Image image = landscape ? headerImageLandscape : headerImage;
+        if (image == null) {
+            image = landscape ? headerImage : headerImageLandscape;
+        }
+        return image;
     }
 
     /**
@@ -82,14 +110,16 @@ public class PassportPageEventHandler extends PdfPageEventHelper {
      * закрашивала верхнюю границу таблиц, продолжающихся с предыдущей страницы.
      */
     private void drawHeader(PdfWriter writer) {
-        if (headerImage == null) {
+        Rectangle page = writer.getPageSize();
+        boolean landscape = page.getWidth() > page.getHeight();
+        Image image = headerImageFor(landscape);
+        if (image == null) {
             return;
         }
-        Rectangle page = writer.getPageSize();
         float pageWidth = page.getWidth();
         float pageHeight = page.getHeight();
-        float imageWidth = headerImage.getWidth();
-        float imageHeight = headerImage.getHeight();
+        float imageWidth = image.getWidth();
+        float imageHeight = image.getHeight();
         if (Float.isNaN(imageWidth) || imageWidth <= 0f
                 || Float.isNaN(imageHeight) || imageHeight <= 0f) {
             log.warn("Некорректные размеры шапки ({}x{}) — пропускаю отрисовку", imageWidth, imageHeight);
@@ -100,11 +130,11 @@ public class PassportPageEventHandler extends PdfPageEventHelper {
             return;
         }
 
-        headerImage.scaleAbsolute(rect.getWidth(), rect.getHeight());
-        headerImage.setAbsolutePosition(rect.getLeft(), rect.getBottom());
+        image.scaleAbsolute(rect.getWidth(), rect.getHeight());
+        image.setAbsolutePosition(rect.getLeft(), rect.getBottom());
         PdfContentByte cb = writer.getDirectContent();
         cb.saveState();
-        cb.addImage(headerImage);
+        cb.addImage(image);
         cb.restoreState();
     }
 
