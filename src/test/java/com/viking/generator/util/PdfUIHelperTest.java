@@ -44,12 +44,13 @@ class PdfUIHelperTest {
     }
 
     @Test
-    @DisplayName("Шапка паспорта: «Паспорт поля» по центру, обычный шрифт текста")
+    @DisplayName("Шапка паспорта: «Паспорт поля» по центру, 14 pt обычным шрифтом")
     void passportTitleCentered() {
         Paragraph p = PdfUIHelper.createPassportTitle();
 
         assertEquals("Паспорт поля", p.getContent());
         assertEquals(Element.ALIGN_CENTER, p.getAlignment());
+        assertEquals(14, p.getFont().getSize(), "Заголовок должен быть 14 pt");
     }
 
     @Test

@@ -55,6 +55,8 @@ public final class PdfUIHelper {
     private static final Font FONT_TEXT;
     private static final Font FONT_TABLE_TITLE;
     private static final Font FONT_TABLE_BODY;
+    /** Заголовок «Паспорт поля» — крупнее основного текста (14 pt, обычный). */
+    private static final Font FONT_PASSPORT_TITLE;
 
     /** Единый плейсхолдер для отсутствующих данных во всех разделах паспорта. */
     public static final String NO_DATA = "— нет данных —";
@@ -73,6 +75,7 @@ public final class PdfUIHelper {
         Font tempText;
         Font tempTableTitle;
         Font tempTableBody;
+        Font tempPassportTitle;
 
         try {
             BaseFont bfBold = BaseFont.createFont("fonts/NotoSans-Bold.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
@@ -82,12 +85,14 @@ public final class PdfUIHelper {
             tempText = new Font(bfReg, 12);
             tempTableTitle = new Font(bfBold, 10);
             tempTableBody = new Font(bfReg, 10);
+            tempPassportTitle = new Font(bfReg, 14);
 
         } catch (Exception e) {
             tempTitle = new Font(Font.HELVETICA, 12, 1);
             tempText = new Font(Font.HELVETICA, 12);
             tempTableTitle = new Font(Font.HELVETICA, 10, 1);
             tempTableBody = new Font(Font.HELVETICA, 10);
+            tempPassportTitle = new Font(Font.HELVETICA, 14);
             log.error("Error loading fonts: {}", e.getMessage());
         }
 
@@ -95,6 +100,7 @@ public final class PdfUIHelper {
         FONT_TEXT = tempText;
         FONT_TABLE_TITLE = tempTableTitle;
         FONT_TABLE_BODY = tempTableBody;
+        FONT_PASSPORT_TITLE = tempPassportTitle;
 
     }
 
@@ -138,11 +144,10 @@ public final class PdfUIHelper {
 
     /**
      * Шапка паспорта: заголовок «Паспорт поля» по центру первой страницы.
-     * Соответствует образцу ПС10-01 (в Word — Times New Roman 12 pt обычный);
-     * в проекте используется обычный шрифт текста, чтобы не ломать общий стиль.
+     * Крупнее основного текста (14 pt), обычное начертание.
      */
     public static Paragraph createPassportTitle() {
-        Paragraph p = new Paragraph("Паспорт поля", FONT_TEXT);
+        Paragraph p = new Paragraph("Паспорт поля", FONT_PASSPORT_TITLE);
         p.setAlignment(Element.ALIGN_CENTER);
         // Увеличенный отступ до содержания: в образце шапку отделяют два пустых абзаца.
         p.setSpacingAfter(SPACING_AFTER_PASSPORT_TITLE);
