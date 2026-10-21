@@ -256,7 +256,7 @@ public final class PdfUIHelper {
                 table.addCell(createStyledCell(new Phrase(item.name() != null ? item.name() : "", FONT_TABLE_BODY), null, Element.ALIGN_LEFT));
                 table.addCell(createStyledCell(
                         new Phrase(item.amount() != null ? String.format("%.2f", item.amount()) : "", FONT_TABLE_BODY),
-                        null, Element.ALIGN_RIGHT));
+                        null, Element.ALIGN_CENTER));
                 table.addCell(createStyledCell(
                         new Phrase(item.unit() != null ? item.unit() : "", FONT_TABLE_BODY),
                         null, Element.ALIGN_CENTER));
