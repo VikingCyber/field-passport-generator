@@ -277,9 +277,32 @@ public final class PdfUIHelper {
         );
     }
 
-    /** Возвращает значение или единый плейсхолдер, если значение null/пустое. */
+    /**
+     * Возвращает значение или единый плейсхолдер, если значение null/пустое/прочерк.
+     * Прочерки ("-", "–", "—") приходят из API как маркер отсутствия данных — они
+     * тоже заменяются плейсхолдером, чтобы в отчёте было видно «чего именно нет».
+     */
     public static String orNoData(String value) {
-        return (value == null || value.isBlank()) ? NO_DATA : value;
+        if (value == null || value.isBlank()) {
+            return NO_DATA;
+        }
+        String trimmed = value.trim();
+        if (trimmed.equals("-") || trimmed.equals("–") || trimmed.equals("—")) {
+            return NO_DATA;
+        }
+        return trimmed;
+    }
+
+    /**
+     * Строка раздела «1.4. Севооборот»: подпись с двоеточием и значением без маркера,
+     * с тем же отступом, что у маркированного списка. Пусть и отсутствующие данные
+     * подписываются: «Культура: — нет данных —» — видно, чего именно не хватает.
+     */
+    public static Paragraph createRotationItem(String label, String value) {
+        Paragraph p = new Paragraph(label + ": " + orNoData(value), FONT_TEXT);
+        p.setIndentationLeft(FIRST_LINE_INDENT);
+        p.setSpacingAfter(SPACING_AFTER_BULLET_POINT);
+        return p;
     }
 
     /** Таблица-заглушка для раздела, в котором нет данных. */

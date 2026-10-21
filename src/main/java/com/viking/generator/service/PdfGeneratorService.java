@@ -171,11 +171,13 @@ public class PdfGeneratorService implements PassportGeneratorService {
         if (rotations == null || rotations.isEmpty()) {
             document.add(PdfUIHelper.createParagraph(PdfUIHelper.NO_DATA));
         } else {
+            // Подписанные строки без маркера: «Культура: …», «Сорт: …», «Репродукция: …».
+            // Отсутствующие данные подставляются плейсхолдером orNoData, поэтому всегда
+            // понятно, какого именно значения не хватает («Культура: — нет данных —»).
             for (var rotation : rotations) {
-                document.add(PdfUIHelper.createBulletPoint(PdfUIHelper.orNoData(rotation.crop())));
-                document.add(PdfUIHelper.createBulletPoint(PdfUIHelper.orNoData(rotation.variety())));
-                document.add(
-                        PdfUIHelper.createBulletPoint(PdfUIHelper.orNoData(rotation.reproduction())));
+                document.add(PdfUIHelper.createRotationItem("Культура", rotation.crop()));
+                document.add(PdfUIHelper.createRotationItem("Сорт", rotation.variety()));
+                document.add(PdfUIHelper.createRotationItem("Репродукция", rotation.reproduction()));
             }
         }
 
