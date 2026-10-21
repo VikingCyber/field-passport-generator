@@ -11,6 +11,7 @@ import com.viking.generator.util.FileUtils;
 import com.viking.generator.util.NoteImageComparators;
 import com.viking.generator.util.PdfUIHelper;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.FileStore;
@@ -39,6 +40,22 @@ import org.slf4j.LoggerFactory;
 public class PdfGeneratorService implements PassportGeneratorService {
 
     private static final Logger log = LoggerFactory.getLogger(PdfGeneratorService.class);
+
+    /** Названия разделов паспорта — единый источник для заголовков и содержания. */
+    static final String SECTION_1 = "Раздел 1. Общая информация.";
+    static final String SECTION_2 = "Раздел 2. Выполненные работы";
+    static final String SECTION_3 = "Раздел 3. Заметки";
+    static final String SECTION_4 = "Раздел 4. Индексы";
+    static final String SECTION_5 = "Раздел 5. Спутниковые снимки NDVI";
+    static final String SECTION_6 = "Раздел 6. Работающие механизаторы, техника, агрегаты.";
+
+    /**
+     * Сдвиг страниц разделов относительно чернового прохода: финальный документ
+     * получает одну страницу содержания перед «Разделом 1». Если содержание
+     * перестанет помещаться на одну страницу, сдвиг надо пересчитать.
+     */
+    private static final int TOC_PAGE_SHIFT = 1;
+
     private final long minRequiredSpaceBytes;
     private final Path outputDir;
 
@@ -69,15 +86,14 @@ public class PdfGeneratorService implements PassportGeneratorService {
 
         boolean isMovedSuccessfully = false;
 
-        try (FileOutputStream fos = new FileOutputStream(tempPath.toFile());
-                BufferedOutputStream bos = new BufferedOutputStream(fos);
-                Document document = PdfUIHelper.createDocument()) {
+        try {
+            // Pass 1 — черновик в память: узнаём номера страниц разделов.
+            // Отрисовка детерминирована: те же данные и тот же код дают те же разрывы страниц,
+            // поэтому в финальном файле разделы смещены ровно на страницу содержания.
+            SectionPageRecorder recorder = new SectionPageRecorder();
+            renderSectionsToBytes(passport, recorder);
 
-            PdfWriter writer = PdfWriter.getInstance(document, bos);
-
-            document.open();
-            log.debug("PDF документ открыт");
-            fillDocument(document, passport, writer);
+            renderToTemp(tempPath, passport, recorder);
         } catch (DocumentException e) {
             log.error("Ошибка структуры PDF (OpenPDF) для {}: {}",
                     passport.generalInfo().fieldName(), e.getMessage());
@@ -124,8 +140,21 @@ public class PdfGeneratorService implements PassportGeneratorService {
         }
     }
 
-    private void fillDocument(Document document, FieldPassport passport, PdfWriter writer) {
-        document.add(PdfUIHelper.createSectionTitle("Раздел 1. Общая информация."));
+    /**
+     * Отмечает страницу раздела, если идёт черновой проход (pages != null).
+     * В финальном проходе номера не нужны — содержание уже собрано.
+     */
+    private static void markSection(SectionPageRecorder pages, String sectionTitle,
+            PdfWriter writer) {
+        if (pages != null) {
+            pages.mark(sectionTitle, writer);
+        }
+    }
+
+    private void fillSections(Document document, PdfWriter writer, FieldPassport passport,
+            SectionPageRecorder pages) {
+        markSection(pages, SECTION_1, writer);
+        document.add(PdfUIHelper.createSectionTitle(SECTION_1));
 
         document.add(PdfUIHelper.createParagraph(
                 "1.1. Подразделение: " + PdfUIHelper.orNoData(passport.generalInfo().department())));
@@ -151,7 +180,8 @@ public class PdfGeneratorService implements PassportGeneratorService {
 
         document.setPageSize(PageSize.A4.rotate());
         document.newPage();
-        document.add(PdfUIHelper.createSectionTitle("Раздел 2. Выполненные работы"));
+        markSection(pages, SECTION_2, writer);
+        document.add(PdfUIHelper.createSectionTitle(SECTION_2));
         List<OperationTableRow> operationTableRows = passport.operations();
         document.add(PdfUIHelper.createOperationsTable(operationTableRows));
 
@@ -159,7 +189,8 @@ public class PdfGeneratorService implements PassportGeneratorService {
         document.add(tmcContainer);
 
         document.newPage();
-        document.add(PdfUIHelper.createSectionTitle("Раздел 3. Заметки"));
+        markSection(pages, SECTION_3, writer);
+        document.add(PdfUIHelper.createSectionTitle(SECTION_3));
         document.add(PdfUIHelper.createParagraph("3.1. Сводная информация"));
         List<NoteTableRow> noteTableRows = passport.notesSection().notes();
         PdfPTable notesTable = PdfUIHelper.createNotesTable(noteTableRows);
@@ -185,12 +216,14 @@ public class PdfGeneratorService implements PassportGeneratorService {
 
         // --- Section 4. Spectral indices ---
         document.newPage();
+        markSection(pages, SECTION_4, writer);
         ChartImage chartImage = passport.indexChart();
         PdfUIHelper.addChartImage(document, chartImage);
 
-        // --- Section 6. Satellite Images ---
+        // --- Section 5. Satellite Images ---
         document.newPage();
-        document.add(PdfUIHelper.createSectionTitle("Раздел 6. Спутниковые снимки NDVI"));
+        markSection(pages, SECTION_5, writer);
+        document.add(PdfUIHelper.createSectionTitle(SECTION_5));
 
         List<SatelliteImage> satelliteImages = passport.satelliteImages();
 
@@ -200,15 +233,53 @@ public class PdfGeneratorService implements PassportGeneratorService {
             PdfUIHelper.addSatelliteImagesColumn(document, satelliteImages);
         }
 
-        // --- Section 7 ---
+        // --- Section 6 ---
         document.newPage();
-        document.add(PdfUIHelper.createSectionTitle(
-                "Раздел 7. Работающие механизаторы, техника, агрегаты."));
+        markSection(pages, SECTION_6, writer);
+        document.add(PdfUIHelper.createSectionTitle(SECTION_6));
         List<TechJournalTableRow> techJournalTableRows = passport.resources();
         PdfPTable techJournalTable = PdfUIHelper.createTechJournalTable(techJournalTableRows);
         document.add(techJournalTable);
 
         log.info("Данные поля успешно добавлены в документ");
+    }
+
+    /**
+     * Черновой проход: рисует только разделы (без шапки и содержания) в память,
+     * чтобы SectionPageRecorder собрал фактические номера страниц разделов.
+     */
+    private void renderSectionsToBytes(FieldPassport passport, SectionPageRecorder recorder)
+            throws DocumentException, IOException {
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                BufferedOutputStream bos = new BufferedOutputStream(baos);
+                Document document = PdfUIHelper.createDocument()) {
+            PdfWriter writer = PdfWriter.getInstance(document, bos);
+            document.open();
+            fillSections(document, writer, passport, recorder);
+            log.debug("Черновой проход завершён. Страниц: {}", writer.getCurrentPageNumber());
+        }
+    }
+
+    /**
+     * Финальный проход: шапка «Паспорт поля», содержание и разделы. Номера страниц
+     * в содержании берутся из чернового прохода со сдвигом на страницу содержания.
+     */
+    private void renderToTemp(Path tempPath, FieldPassport passport, SectionPageRecorder recorder)
+            throws DocumentException, IOException {
+        try (FileOutputStream fos = new FileOutputStream(tempPath.toFile());
+                BufferedOutputStream bos = new BufferedOutputStream(fos);
+                Document document = PdfUIHelper.createDocument()) {
+            PdfWriter writer = PdfWriter.getInstance(document, bos);
+            document.open();
+            log.debug("PDF документ открыт (финальный проход)");
+
+            document.add(PdfUIHelper.createPassportTitle());
+            recorder.sectionTitles().forEach((title, page) ->
+                    document.add(PdfUIHelper.createTocLine(title, page + TOC_PAGE_SHIFT)));
+            document.newPage();
+
+            fillSections(document, writer, passport, null);
+        }
     }
 
     @Override
@@ -262,5 +333,24 @@ public class PdfGeneratorService implements PassportGeneratorService {
         String year = String.valueOf(passport.generalInfo().year());
         String saveFileName = fieldName.replaceAll("[^a-zA-Zа-яА-Я0-9]", "_") + "_" + year + ".pdf";
         return this.outputDir.resolve(saveFileName);
+    }
+
+    /**
+     * Запоминает номер страницы для каждого раздела во время чернового прохода.
+     * Каждый раздел начинается с новой страницы (в {@code fillSections} перед ним
+     * вызывается {@code newPage()}), поэтому отметка ставится сразу после
+     * {@code newPage()} либо на первой странице перед «Разделом 1».
+     */
+    private static final class SectionPageRecorder {
+        private final Map<String, Integer> pages = new LinkedHashMap<>();
+
+        void mark(String sectionTitle, PdfWriter writer) {
+            pages.putIfAbsent(sectionTitle, writer.getCurrentPageNumber());
+        }
+
+        /** Названия разделов в порядке следования с номерами страниц черновика. */
+        Map<String, Integer> sectionTitles() {
+            return new LinkedHashMap<>(pages);
+        }
     }
 }

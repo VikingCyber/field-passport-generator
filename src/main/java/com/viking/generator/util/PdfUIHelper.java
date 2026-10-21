@@ -11,6 +11,7 @@ import org.openpdf.text.Font;
 import org.openpdf.text.Image;
 import org.openpdf.text.Rectangle;
 import org.openpdf.text.pdf.*;
+import org.openpdf.text.pdf.draw.DottedLineSeparator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,8 +41,12 @@ public final class PdfUIHelper {
     private static final float MARGIN_BOTTOM = 2.0f * CM_TO_PT;
     private static final float FIRST_LINE_INDENT = 0.75f * CM_TO_PT;
 
+    /** Ширина текстовой области A4: страница минус поля (левое 3 см, правое 1.5 см). */
+    private static final float TOC_TEXT_WIDTH = PageSize.A4.getWidth() - MARGIN_LEFT - MARGIN_RIGHT;
+
     // Отступы текста и заголовков
     private static final float SPACING_AFTER_TITLE = 12f;
+    private static final float SPACING_AFTER_PASSPORT_TITLE = 20f;
     private static final float SPACING_AFTER_PARAGRAPH = 8f;
     private static final float SPACING_AFTER_BULLET_POINT = 4f;
 
@@ -50,6 +55,8 @@ public final class PdfUIHelper {
     private static final Font FONT_TEXT;
     private static final Font FONT_TABLE_TITLE;
     private static final Font FONT_TABLE_BODY;
+    /** Заголовок «Паспорт поля» — крупнее основного текста (14 pt, обычный). */
+    private static final Font FONT_PASSPORT_TITLE;
 
     /** Единый плейсхолдер для отсутствующих данных во всех разделах паспорта. */
     public static final String NO_DATA = "— нет данных —";
@@ -68,6 +75,7 @@ public final class PdfUIHelper {
         Font tempText;
         Font tempTableTitle;
         Font tempTableBody;
+        Font tempPassportTitle;
 
         try {
             BaseFont bfBold = BaseFont.createFont("fonts/arialbd.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
@@ -77,12 +85,14 @@ public final class PdfUIHelper {
             tempText = new Font(bfReg, 12);
             tempTableTitle = new Font(bfBold, 10);
             tempTableBody = new Font(bfReg, 10);
+            tempPassportTitle = new Font(bfReg, 14);
 
         } catch (Exception e) {
             tempTitle = new Font(Font.HELVETICA, 12, 1);
             tempText = new Font(Font.HELVETICA, 12);
             tempTableTitle = new Font(Font.HELVETICA, 10, 1);
             tempTableBody = new Font(Font.HELVETICA, 10);
+            tempPassportTitle = new Font(Font.HELVETICA, 14);
             log.error("Error loading fonts: {}", e.getMessage());
         }
 
@@ -90,6 +100,7 @@ public final class PdfUIHelper {
         FONT_TEXT = tempText;
         FONT_TABLE_TITLE = tempTableTitle;
         FONT_TABLE_BODY = tempTableBody;
+        FONT_PASSPORT_TITLE = tempPassportTitle;
 
     }
 
@@ -129,6 +140,91 @@ public final class PdfUIHelper {
         Paragraph p = new Paragraph(text, FONT_TITLE);
         p.setSpacingAfter(SPACING_AFTER_TITLE);
         return p;
+    }
+
+    /**
+     * Шапка паспорта: заголовок «Паспорт поля» по центру первой страницы.
+     * Крупнее основного текста (14 pt), обычное начертание.
+     */
+    public static Paragraph createPassportTitle() {
+        Paragraph p = new Paragraph("Паспорт поля", FONT_PASSPORT_TITLE);
+        p.setAlignment(Element.ALIGN_CENTER);
+        // Увеличенный отступ до содержания: в образце шапку отделяют два пустых абзаца.
+        p.setSpacingAfter(SPACING_AFTER_PASSPORT_TITLE);
+        return p;
+    }
+
+    /**
+     * Строка содержания — как оглавление из образца ПС10-01 (поле Word TOC):
+     * название раздела слева, пунктирный лидер, номер страницы прижат к правому
+     * краю текстовой области. OpenPDF не поддерживает табуляцию с заполнителем,
+     * поэтому лидер рисуется сепаратором в средней колонке, ширина которой
+     * вычисляется по реальной ширине текста: точки заполняют ровно промежуток
+     * между названием и номером страницы.
+     */
+    public static PdfPTable createTocLine(String title, int page) {
+        String pageText = String.valueOf(page);
+        float titleTick = Math.max(measureText(title, FONT_TEXT) + 2f, 20f);
+        float pageTick = Math.max(measureText(pageText, FONT_TEXT) + 2f, 14f);
+        float dotsTick = Math.max(TOC_TEXT_WIDTH - titleTick - pageTick, 10f);
+
+        PdfPTable line = new PdfPTable(3);
+        line.setLockedWidth(true);
+        line.setTotalWidth(TOC_TEXT_WIDTH);
+        line.setHorizontalAlignment(Element.ALIGN_LEFT);
+        // Между строками содержания — увеличенный отступ (как в образце).
+        line.setSpacingAfter(5f);
+        try {
+            // Доли ширины в процентах от общей ширины таблицы: сумма ровно 100.
+            line.setWidths(new float[] {
+                    titleTick / TOC_TEXT_WIDTH * 100f,
+                    dotsTick / TOC_TEXT_WIDTH * 100f,
+                    pageTick / TOC_TEXT_WIDTH * 100f
+            });
+        } catch (DocumentException e) {
+            log.error("Failed to set TOC line widths: {}", e.getMessage());
+        }
+
+        PdfPCell titleCell = new PdfPCell(new Phrase(title, FONT_TEXT));
+        titleCell.setBorder(Rectangle.NO_BORDER);
+        titleCell.setPadding(0f);
+        titleCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+
+        DottedLineSeparator dots = new DottedLineSeparator();
+        dots.setGap(4f);
+        dots.setLineWidth(1f);
+
+        PdfPCell dotsCell = new PdfPCell();
+        dotsCell.setBorder(Rectangle.NO_BORDER);
+        dotsCell.setPadding(0f);
+        // Колонка прижата к низу: точечный лидер идёт по базовой линии текста,
+        // как заполнитель Word в оглавлении образца.
+        dotsCell.addElement(dots);
+        dotsCell.setVerticalAlignment(Element.ALIGN_BOTTOM);
+
+        PdfPCell pageCell = new PdfPCell(new Phrase(pageText, FONT_TEXT));
+        pageCell.setBorder(Rectangle.NO_BORDER);
+        pageCell.setPadding(0f);
+        pageCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        pageCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+
+        line.addCell(titleCell);
+        line.addCell(dotsCell);
+        line.addCell(pageCell);
+        return line;
+    }
+
+    /**
+     * Ширина текста в пунктах для шрифта. Если встроенный BaseFont недоступен
+     * (фолбэк на системный шрифт), используется грубая оценка: в среднем половина
+     * размера шрифта на символ.
+     */
+    private static float measureText(String text, Font font) {
+        BaseFont baseFont = font.getBaseFont();
+        if (baseFont != null) {
+            return baseFont.getWidthPoint(text, font.getSize());
+        }
+        return font.getSize() * 0.5f * text.length();
     }
 
     public static Paragraph createBulletPoint(String text) {

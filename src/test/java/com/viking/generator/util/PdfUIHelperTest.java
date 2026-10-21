@@ -1,6 +1,7 @@
 package com.viking.generator.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.viking.generator.model.common.SpectralIndex;
 import com.viking.generator.model.common.TmcItem;
@@ -9,6 +10,8 @@ import com.viking.generator.model.tables.OperationTableRow;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import org.openpdf.text.Element;
+import org.openpdf.text.Paragraph;
 import org.openpdf.text.pdf.PdfPCell;
 import org.openpdf.text.pdf.PdfPTable;
 
@@ -38,6 +41,33 @@ class PdfUIHelperTest {
 
         assertEquals("3 дня после СЗР\nПлановая дата: 18.05.2026 · Съёмка: " + PdfUIHelper.NO_DATA,
                 PdfUIHelper.formatSatelliteCaption(img));
+    }
+
+    @Test
+    @DisplayName("Шапка паспорта: «Паспорт поля» по центру, 14 pt обычным шрифтом")
+    void passportTitleCentered() {
+        Paragraph p = PdfUIHelper.createPassportTitle();
+
+        assertEquals("Паспорт поля", p.getContent());
+        assertEquals(Element.ALIGN_CENTER, p.getAlignment());
+        assertEquals(14, p.getFont().getSize(), "Заголовок должен быть 14 pt");
+    }
+
+    @Test
+    @DisplayName("Строка содержания: название слева, лидер по ширине, номер страницы справа")
+    void tocLineLayout() {
+        PdfPTable line = PdfUIHelper.createTocLine("Раздел 1. Общая информация.", 2);
+
+        assertEquals(3, line.getNumberOfColumns());
+        assertEquals("Раздел 1. Общая информация.", cell(line, 0, 0));
+        assertEquals("2", cell(line, 0, 2));
+
+        // Ширины считаются по тексту: лидер занимает весь промежуток,
+        // колонка названия шире колонки номера (номер прижат к правому краю).
+        float[] widths = line.getAbsoluteWidths();
+        assertEquals(3, widths.length);
+        assertTrue(widths[0] > widths[2], "колонка названия уже колонки номера");
+        assertTrue(widths[1] > 0f, "лидер должен занимать ненулевую ширину");
     }
 
     @Test
