@@ -1,6 +1,7 @@
 package com.viking.generator.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.viking.generator.model.common.SpectralIndex;
 import com.viking.generator.model.common.TmcItem;
@@ -52,13 +53,20 @@ class PdfUIHelperTest {
     }
 
     @Test
-    @DisplayName("Строка содержания: название слева, номер страницы справа")
+    @DisplayName("Строка содержания: название слева, лидер по ширине, номер страницы справа")
     void tocLineLayout() {
         PdfPTable line = PdfUIHelper.createTocLine("Раздел 1. Общая информация.", 2);
 
         assertEquals(3, line.getNumberOfColumns());
         assertEquals("Раздел 1. Общая информация.", cell(line, 0, 0));
         assertEquals("2", cell(line, 0, 2));
+
+        // Ширины считаются по тексту: лидер занимает весь промежуток,
+        // колонка названия шире колонки номера (номер прижат к правому краю).
+        float[] widths = line.getAbsoluteWidths();
+        assertEquals(3, widths.length);
+        assertTrue(widths[0] > widths[2], "колонка названия уже колонки номера");
+        assertTrue(widths[1] > 0f, "лидер должен занимать ненулевую ширину");
     }
 
     @Test

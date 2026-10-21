@@ -49,8 +49,6 @@ public class PdfGeneratorService implements PassportGeneratorService {
     static final String SECTION_5 = "Раздел 5. Спутниковые снимки NDVI";
     static final String SECTION_6 = "Раздел 6. Работающие механизаторы, техника, агрегаты.";
 
-    private static final String CONTENT_TITLE = "Содержание";
-
     /**
      * Сдвиг страниц разделов относительно чернового прохода: финальный документ
      * получает одну страницу содержания перед «Разделом 1». Если содержание
@@ -276,7 +274,6 @@ public class PdfGeneratorService implements PassportGeneratorService {
             log.debug("PDF документ открыт (финальный проход)");
 
             document.add(PdfUIHelper.createPassportTitle());
-            document.add(PdfUIHelper.createSectionTitle(CONTENT_TITLE));
             recorder.sectionTitles().forEach((title, page) ->
                     document.add(PdfUIHelper.createTocLine(title, page + TOC_PAGE_SHIFT)));
             document.newPage();

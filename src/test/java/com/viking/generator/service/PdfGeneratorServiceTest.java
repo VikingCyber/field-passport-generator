@@ -46,7 +46,6 @@ class PdfGeneratorServiceTest {
             stripper.setEndPage(1);
             String page1 = stripper.getText(doc).replaceAll("\\s+", " ");
             assertTrue(page1.contains("Паспорт поля"), page1);
-            assertTrue(page1.contains("Содержание"), page1);
             assertTrue(page1.contains("Раздел 1. Общая информация."), page1);
             assertTrue(page1.contains("Раздел 2. Выполненные работы"), page1);
             assertTrue(page1.contains("Раздел 3. Заметки"), page1);

@@ -41,6 +41,9 @@ public final class PdfUIHelper {
     private static final float MARGIN_BOTTOM = 2.0f * CM_TO_PT;
     private static final float FIRST_LINE_INDENT = 0.75f * CM_TO_PT;
 
+    /** Ширина текстовой области A4: страница минус поля (левое 3 см, правое 1.5 см). */
+    private static final float TOC_TEXT_WIDTH = PageSize.A4.getWidth() - MARGIN_LEFT - MARGIN_RIGHT;
+
     // Отступы текста и заголовков
     private static final float SPACING_AFTER_TITLE = 12f;
     private static final float SPACING_AFTER_PARAGRAPH = 8f;
@@ -145,17 +148,31 @@ public final class PdfUIHelper {
     }
 
     /**
-     * Строка содержания: название раздела слева, номер страницы справа,
-     * между ними — пунктирный лидер. Лидер рисуется сепаратором
-     * {@link DottedLineSeparator} в средней колонке, чтобы не зависеть
-     * от поддержки табуляции с заполнителем.
+     * Строка содержания — как оглавление из образца ПС10-01 (поле Word TOC):
+     * название раздела слева, пунктирный лидер, номер страницы прижат к правому
+     * краю текстовой области. OpenPDF не поддерживает табуляцию с заполнителем,
+     * поэтому лидер рисуется сепаратором в средней колонке, ширина которой
+     * вычисляется по реальной ширине текста: точки заполняют ровно промежуток
+     * между названием и номером страницы.
      */
     public static PdfPTable createTocLine(String title, int page) {
+        String pageText = String.valueOf(page);
+        float titleTick = Math.max(measureText(title, FONT_TEXT) + 2f, 20f);
+        float pageTick = Math.max(measureText(pageText, FONT_TEXT) + 2f, 14f);
+        float dotsTick = Math.max(TOC_TEXT_WIDTH - titleTick - pageTick, 10f);
+
         PdfPTable line = new PdfPTable(3);
-        line.setWidthPercentage(100f);
+        line.setLockedWidth(true);
+        line.setTotalWidth(TOC_TEXT_WIDTH);
+        line.setHorizontalAlignment(Element.ALIGN_LEFT);
         line.setSpacingAfter(2f);
         try {
-            line.setWidths(new float[] {7f, 2f, 1f});
+            // Доли ширины в процентах от общей ширины таблицы: сумма ровно 100.
+            line.setWidths(new float[] {
+                    titleTick / TOC_TEXT_WIDTH * 100f,
+                    dotsTick / TOC_TEXT_WIDTH * 100f,
+                    pageTick / TOC_TEXT_WIDTH * 100f
+            });
         } catch (DocumentException e) {
             log.error("Failed to set TOC line widths: {}", e.getMessage());
         }
@@ -163,23 +180,22 @@ public final class PdfUIHelper {
         PdfPCell titleCell = new PdfPCell(new Phrase(title, FONT_TEXT));
         titleCell.setBorder(Rectangle.NO_BORDER);
         titleCell.setPadding(0f);
-        titleCell.setPaddingTop(2f);
-        titleCell.setPaddingBottom(2f);
-        titleCell.setHorizontalAlignment(Element.ALIGN_LEFT);
         titleCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+
+        DottedLineSeparator dots = new DottedLineSeparator();
+        dots.setGap(4f);
+        dots.setLineWidth(1f);
 
         PdfPCell dotsCell = new PdfPCell();
         dotsCell.setBorder(Rectangle.NO_BORDER);
         dotsCell.setPadding(0f);
-        dotsCell.setPaddingBottom(4f);
-        dotsCell.addElement(new DottedLineSeparator());
+        dotsCell.setPaddingBottom(3f);
+        dotsCell.addElement(dots);
         dotsCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
 
-        PdfPCell pageCell = new PdfPCell(new Phrase(String.valueOf(page), FONT_TEXT));
+        PdfPCell pageCell = new PdfPCell(new Phrase(pageText, FONT_TEXT));
         pageCell.setBorder(Rectangle.NO_BORDER);
         pageCell.setPadding(0f);
-        pageCell.setPaddingTop(2f);
-        pageCell.setPaddingBottom(2f);
         pageCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
         pageCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
 
@@ -187,6 +203,19 @@ public final class PdfUIHelper {
         line.addCell(dotsCell);
         line.addCell(pageCell);
         return line;
+    }
+
+    /**
+     * Ширина текста в пунктах для шрифта. Если встроенный BaseFont недоступен
+     * (фолбэк на системный шрифт), используется грубая оценка: в среднем половина
+     * размера шрифта на символ.
+     */
+    private static float measureText(String text, Font font) {
+        BaseFont baseFont = font.getBaseFont();
+        if (baseFont != null) {
+            return baseFont.getWidthPoint(text, font.getSize());
+        }
+        return font.getSize() * 0.5f * text.length();
     }
 
     public static Paragraph createBulletPoint(String text) {
