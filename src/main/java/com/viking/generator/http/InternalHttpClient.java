@@ -81,10 +81,16 @@ public class InternalHttpClient {
             HttpResponse<byte[]> response = sendRequest(request, HttpResponse.BodyHandlers.ofByteArray());
             if (response != null && response.body() != null && response.body().length > minDownloadSize) {
                 return response.body();
+            }
+            if (response != null && response.body() != null && response.body().length > 0) {
+                // Заглушка/плейсхолдер от сервера (например, пустой тайл спутника 250-300 байт)
+                // — ожидаемое состояние данных, не захламляем лог.
+                log.debug("Downloaded placeholder content ({} bytes) for URI: {}",
+                        response.body().length, uri);
             } else {
                 log.warn("File downloaded but is suspiciously small or null for URI: {}", uri);
-                return null;
             }
+            return null;
         }).orElse(null);
     }
 
