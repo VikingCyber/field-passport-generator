@@ -12,9 +12,10 @@ import org.openpdf.text.Rectangle;
 /**
  * Геометрия верхнего колонтитула. Раскладка повторяет образец «26ХХХХХ Письмо(БланкЧистыйЛист)»:
  * шапка растянута на всю ширину листа и прижата к левому краю страницы ({@code positionH
- * relativeFrom="page" align="left"}). На повёрнутых (альбомных) страницах полная ширина
- * дала бы картинку выше верхнего поля — там высота ограничена зазором HEADER_GAP, чтобы
- * шапка не закрашивала верхнюю границу таблиц, продолжающихся с предыдущей страницы.
+ * relativeFrom="page" align="left"}). На повёрнутых (альбомных) страницах контент сдвинут вниз
+ * увеличенным полем {@code LANDSCAPE_MARGIN_TOP}, поэтому шапка занимает всю ширину листа
+ * (цветочки — в правом углу), а зазор HEADER_GAP перед контентом сохраняется, чтобы шапка
+ * не закрашивала верхнюю границу таблиц, продолжающихся с предыдущей страницы.
  */
 class PassportPageEventHandlerTest {
 
@@ -44,19 +45,25 @@ class PassportPageEventHandlerTest {
     }
 
     @Test
-    @DisplayName("На альбомной странице шапка не выходит в контент: высота ограничена, зазор HEADER_GAP сохранён")
-    void landscapeHeaderKeepsGapAboveContent() {
-        float landscapeContentTop = LANDSCAPE_H - PdfUIHelper.MARGIN_TOP;
+    @DisplayName("На альбомной странице шапка на всю ширину листа (цветы в правом углу), зазор HEADER_GAP сохранён")
+    void landscapeHeaderSpansFullPageWidthAndKeepsGap() {
+        // Контент на альбомной странице сдвинут вниз полем LANDSCAPE_MARGIN_TOP.
+        float landscapeContentTop = LANDSCAPE_H - PdfUIHelper.LANDSCAPE_MARGIN_TOP;
         Rectangle landscape = PassportPageEventHandler.headerPlacement(
                 LANDSCAPE_W, LANDSCAPE_H, IMG_W, IMG_H);
         assertNotNull(landscape);
+        // Шапка на всю ширину альбомного листа (842 pt) — цветочки уходят в правый угол.
+        assertEquals(LANDSCAPE_W, landscape.getWidth(), 1f,
+                "Альбом: шапка должна занимать всю ширину листа: " + landscape);
+        assertEquals(0f, landscape.getLeft(), EPS,
+                "Альбом: шапка должна быть прижата к левому краю страницы: " + landscape);
         // Регрессия: нижний край шапки должен быть не ниже contentTop + HEADER_GAP,
         // иначе на альбомной странице закрашивается верхняя граница продолжающейся таблицы.
         assertTrue(landscape.getBottom() >= landscapeContentTop + PassportPageEventHandler.HEADER_GAP - EPS,
                 "Альбом: шапка не оставляет зазор HEADER_GAP перед контентом: " + landscape);
-        // Полная ширина (842) дала бы высоту ~80 pt > верхнее поле — сжимаем, пропорции сохраняются.
-        assertTrue(landscape.getHeight() <= PdfUIHelper.MARGIN_TOP - PassportPageEventHandler.HEADER_GAP + EPS,
-                "Высота шапки превышает верхнее поле с зазором: " + landscape);
+        assertTrue(landscape.getHeight() <= PdfUIHelper.LANDSCAPE_MARGIN_TOP
+                - PassportPageEventHandler.HEADER_GAP + EPS,
+                "Альбом: высота шапки превышает поле с зазором: " + landscape);
     }
 
     @Test

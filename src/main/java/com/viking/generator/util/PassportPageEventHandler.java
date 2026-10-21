@@ -114,10 +114,10 @@ public class PassportPageEventHandler extends PdfPageEventHelper {
      * краю страницы (в образце {@code positionH relativeFrom="page" align="left"}),
      * сохраняя пропорции картинки. На портретной странице высота выходит впритык к верхнему
      * полю (как extent из образца: 56.4–56.6 pt при поле 56.7 pt). На альбомной (повёрнутой)
-     * странице полная ширина дала бы картинку выше верхнего поля — высота ограничивается
-     * {@link #HEADER_GAP}-зазором, чтобы шапка не закрашивала верхнюю границу таблиц,
-     * продолжающихся с предыдущей страницы. Возвращает {@code null} при некорректных пропорциях.
-     * Вынесено в статический метод для юнит-тестов геометрии.
+     * странице контент сдвинут вниз увеличенным полем {@link PdfUIHelper#LANDSCAPE_MARGIN_TOP},
+     * поэтому шапке разрешена полная ширина листа (842 pt) — цветочки уходят в правый угол,
+     * а зазор {@link #HEADER_GAP} перед контентом сохраняется. Возвращает {@code null}
+     * при некорректных пропорциях. Вынесено в статический метод для юнит-тестов геометрии.
      */
     static Rectangle headerPlacement(float pageWidth, float pageHeight,
             float imageWidth, float imageHeight) {
@@ -131,11 +131,15 @@ public class PassportPageEventHandler extends PdfPageEventHelper {
         if (height <= 0f) {
             return null;
         }
-        // Полная ширина не всегда помещается в верхнее поле: на альбомной странице
-        // (842 pt) та же картинка стала бы выше поля (56.7 pt) и перекрыла бы контент.
-        float maxHeight = PdfUIHelper.MARGIN_TOP;
+        // Полная ширина не всегда помещается в верхнее поле. На портретной странице
+        // (595 pt) высота 56.6 pt вписывается в поле 56.7 pt. На альбомной (842 pt) —
+        // контент сдвинут вниз полем LANDSCAPE_MARGIN_TOP, и полная ширина даёт высоту
+        // ~80 pt при зазоре HEADER_GAP, так что картинка не перекрывает контент.
+        float maxHeight = (pageWidth > pageHeight)
+                ? PdfUIHelper.LANDSCAPE_MARGIN_TOP - HEADER_GAP
+                : PdfUIHelper.MARGIN_TOP;
         if (height > maxHeight) {
-            height = maxHeight - HEADER_GAP;
+            height = maxHeight;
         }
         if (height <= 0f) {
             return null;

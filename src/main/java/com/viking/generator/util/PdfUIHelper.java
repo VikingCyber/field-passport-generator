@@ -39,6 +39,14 @@ public final class PdfUIHelper {
     public static final float MARGIN_RIGHT = 1.5f * CM_TO_PT;
     public static final float MARGIN_TOP = 2.0f * CM_TO_PT;
     public static final float MARGIN_BOTTOM = 2.0f * CM_TO_PT;
+    /**
+     * Верхнее поле повёрнутых (альбомных) страниц. Шапка на всю ширину листа (842 pt
+     * при пропорциях 1240×118) имеет высоту ~80 pt — это больше портретного поля (56.7 pt),
+     * поэтому под альбомные листы поле увеличивается, чтобы шапка не перекрывала контент,
+     * а цветочки шапки уходили в правый угол листа. Применяется к следующей странице
+     * через {@link org.openpdf.text.Document#setMargins} перед переходом в альбомную ориентацию.
+     */
+    public static final float LANDSCAPE_MARGIN_TOP = 3.2f * CM_TO_PT;
     private static final float FIRST_LINE_INDENT = 0.75f * CM_TO_PT;
 
     /** Ширина текстовой области A4: страница минус поля (левое 3 см, правое 1.5 см). */

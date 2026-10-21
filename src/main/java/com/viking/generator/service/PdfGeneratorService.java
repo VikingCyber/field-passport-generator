@@ -180,6 +180,10 @@ public class PdfGeneratorService implements PassportGeneratorService {
         }
 
         document.setPageSize(PageSize.A4.rotate());
+        // Альбомные листы шире: шапка на всю ширину (842 pt) выше портретной,
+        // поэтому верхнее поле увеличивается (действует со следующей страницы).
+        document.setMargins(PdfUIHelper.MARGIN_LEFT, PdfUIHelper.MARGIN_RIGHT,
+                PdfUIHelper.LANDSCAPE_MARGIN_TOP, PdfUIHelper.MARGIN_BOTTOM);
         document.newPage();
         markSection(pages, SECTION_2, writer);
         document.add(PdfUIHelper.createSectionTitle(SECTION_2));
