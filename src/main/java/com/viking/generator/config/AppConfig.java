@@ -109,7 +109,7 @@ public class AppConfig {
                     getString(ConfigKeys.App.Storage.Charts.PREFIX, "chart_"),
                     getInt(ConfigKeys.App.Storage.Charts.WIDTH, 2000),
                     getInt(ConfigKeys.App.Storage.Charts.HEIGHT, 1200),
-                    getPath(ConfigKeys.App.Storage.Charts.FONT_PATH, "fonts/NotoSans-Regular.ttf")
+                    getPath(ConfigKeys.App.Storage.Charts.FONT_PATH, "fonts/arial.ttf")
             );
         }
         return cachedStoragePaths;
