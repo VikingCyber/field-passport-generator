@@ -79,6 +79,30 @@ class PdfUIHelperTest {
     }
 
     @Test
+    @DisplayName("orNoData: прочерк (маркер отсутствия из API) заменяется информативным плейсхолдером")
+    void orNoDataReplacesDashPlaceholder() {
+        // PassportMapper.UNKNOWN_ROTATION и FieldDataAggregator.toCropRotation подставляют "-"
+        // при отсутствии данных — он не должен попадать в отчёт как пустой прочерк.
+        assertEquals(PdfUIHelper.NO_DATA, PdfUIHelper.orNoData("-"));
+        assertEquals(PdfUIHelper.NO_DATA, PdfUIHelper.orNoData("–"));
+        assertEquals(PdfUIHelper.NO_DATA, PdfUIHelper.orNoData("—"));
+        assertEquals("Арго СЭ", PdfUIHelper.orNoData("Арго СЭ"));
+    }
+
+    @Test
+    @DisplayName("Строка севооборота: подпись с двоеточием и значением без маркера")
+    void rotationItemHasLabelAndNoMarker() {
+        Paragraph item = PdfUIHelper.createRotationItem("Культура", "Картофель 2026");
+        assertEquals("Культура: Картофель 2026", item.getContent());
+        assertTrue(!item.getContent().startsWith("•"),
+                "Строка севооборота не должна иметь маркер списка, только подпись");
+
+        Paragraph missing = PdfUIHelper.createRotationItem("Сорт", null);
+        assertEquals("Сорт: " + PdfUIHelper.NO_DATA, missing.getContent(),
+                "Отсутствующие данные подписываются плейсхолдером, чтобы было видно, чего нет");
+    }
+
+    @Test
     @DisplayName("Таблица ТМЦ: 5 колонок, одна строка на каждый расход, с операцией и датой")
     void tmcTableRowsPerConsumption() {
         OperationTableRow opProtect = operation(

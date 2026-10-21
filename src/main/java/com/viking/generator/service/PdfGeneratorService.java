@@ -9,6 +9,7 @@ import com.viking.generator.model.tables.OperationTableRow;
 import com.viking.generator.model.tables.TechJournalTableRow;
 import com.viking.generator.util.FileUtils;
 import com.viking.generator.util.NoteImageComparators;
+import com.viking.generator.util.PassportPageEventHandler;
 import com.viking.generator.util.PdfUIHelper;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
@@ -170,15 +171,21 @@ public class PdfGeneratorService implements PassportGeneratorService {
         if (rotations == null || rotations.isEmpty()) {
             document.add(PdfUIHelper.createParagraph(PdfUIHelper.NO_DATA));
         } else {
+            // Подписанные строки без маркера: «Культура: …», «Сорт: …», «Репродукция: …».
+            // Отсутствующие данные подставляются плейсхолдером orNoData, поэтому всегда
+            // понятно, какого именно значения не хватает («Культура: — нет данных —»).
             for (var rotation : rotations) {
-                document.add(PdfUIHelper.createBulletPoint(PdfUIHelper.orNoData(rotation.crop())));
-                document.add(PdfUIHelper.createBulletPoint(PdfUIHelper.orNoData(rotation.variety())));
-                document.add(
-                        PdfUIHelper.createBulletPoint(PdfUIHelper.orNoData(rotation.reproduction())));
+                document.add(PdfUIHelper.createRotationItem("Культура", rotation.crop()));
+                document.add(PdfUIHelper.createRotationItem("Сорт", rotation.variety()));
+                document.add(PdfUIHelper.createRotationItem("Репродукция", rotation.reproduction()));
             }
         }
 
         document.setPageSize(PageSize.A4.rotate());
+        // Альбомные листы шире: шапка на всю ширину (842 pt) выше портретной,
+        // поэтому верхнее поле увеличивается (действует со следующей страницы).
+        document.setMargins(PdfUIHelper.MARGIN_LEFT, PdfUIHelper.MARGIN_RIGHT,
+                PdfUIHelper.LANDSCAPE_MARGIN_TOP, PdfUIHelper.MARGIN_BOTTOM);
         document.newPage();
         markSection(pages, SECTION_2, writer);
         document.add(PdfUIHelper.createSectionTitle(SECTION_2));
@@ -254,6 +261,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
                 BufferedOutputStream bos = new BufferedOutputStream(baos);
                 Document document = PdfUIHelper.createDocument()) {
             PdfWriter writer = PdfWriter.getInstance(document, bos);
+            writer.setPageEvent(new PassportPageEventHandler());
             document.open();
             fillSections(document, writer, passport, recorder);
             log.debug("Черновой проход завершён. Страниц: {}", writer.getCurrentPageNumber());
@@ -270,6 +278,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
                 BufferedOutputStream bos = new BufferedOutputStream(fos);
                 Document document = PdfUIHelper.createDocument()) {
             PdfWriter writer = PdfWriter.getInstance(document, bos);
+            writer.setPageEvent(new PassportPageEventHandler());
             document.open();
             log.debug("PDF документ открыт (финальный проход)");
 
