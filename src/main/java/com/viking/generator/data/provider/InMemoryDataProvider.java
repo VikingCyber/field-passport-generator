@@ -21,6 +21,8 @@ public class InMemoryDataProvider implements DataProvider, WebDataProvider {
 
     private volatile List<FieldPassport> allPassports = new ArrayList<>();
     private final Map<PassportKey, Path> existingPassportsCache = new ConcurrentHashMap<>();
+    /** Индекс паспортов по ключу {fieldId, year} для поиска за O(1). */
+    private final Map<PassportKey, FieldPassport> passportIndex = new ConcurrentHashMap<>();
 
     public InMemoryDataProvider(String outputDir, String extension) {
         this.outputDir = outputDir;
@@ -31,8 +33,14 @@ public class InMemoryDataProvider implements DataProvider, WebDataProvider {
         return Optional.ofNullable(existingPassportsCache.get(new PassportKey(fieldId, year)));
     }
 
+    /** Быстрый поиск паспорта по ключу (индекс строится при {@link #refreshFromFiles}). */
+    public Optional<FieldPassport> findPassport(String fieldId, int year) {
+        return Optional.ofNullable(passportIndex.get(new PassportKey(fieldId, year)));
+    }
+
     public synchronized void refreshFromFiles(FileDataProvider fileLoader) {
         this.allPassports = fileLoader.getPassportsData();
+        rebuildPassportIndex();
         refreshPassportCacheFromDisk();
     }
 
@@ -71,16 +79,27 @@ public class InMemoryDataProvider implements DataProvider, WebDataProvider {
     public void registerNewPassport(FieldPassport fieldPassport) {
         Path pdfPath = buildPdfPath(fieldPassport.generalInfo().fieldName(),
                 fieldPassport.generalInfo().year());
-        existingPassportsCache.put(
-                new PassportKey(fieldPassport.fieldId(), fieldPassport.generalInfo().year()),
-                pdfPath);
+        PassportKey key = new PassportKey(fieldPassport.fieldId(), fieldPassport.generalInfo().year());
+        existingPassportsCache.put(key, pdfPath);
+        passportIndex.put(key, fieldPassport);
     }
 
     public void removePassport(String fieldId, int year) {
-        if (existingPassportsCache.remove(new PassportKey(fieldId, year)) != null) {
+        PassportKey key = new PassportKey(fieldId, year);
+        if (existingPassportsCache.remove(key) != null) {
             log.debug("Passport cache updated reactively: removed [ID: {}, Year: {}]", fieldId,
                     year);
         }
+        passportIndex.remove(key);
+    }
+
+    private void rebuildPassportIndex() {
+        passportIndex.clear();
+        for (FieldPassport field : allPassports) {
+            passportIndex.put(
+                    new PassportKey(field.fieldId(), field.generalInfo().year()), field);
+        }
+        log.debug("Passport index rebuilt. Entries: {}", passportIndex.size());
     }
 
     private void refreshPassportCacheFromDisk() {
