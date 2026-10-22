@@ -4,15 +4,12 @@ import com.viking.generator.data.dictionary.MachineDictionary;
 import com.viking.generator.data.dto.RawOperationData;
 import com.viking.generator.model.common.MachineResource;
 import com.viking.generator.model.tables.TechJournalTableRow;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.nodes.TextNode;
 
 import java.util.Comparator;
 import java.util.List;
 
 import static com.viking.generator.util.StringUtils.clean;
+import static com.viking.generator.util.StringUtils.cleanHtml;
 import static com.viking.generator.util.StringUtils.normalize;
 
 public class TechJournalMapper {
@@ -42,14 +39,5 @@ public class TechJournalMapper {
                                     cleanDate
                             );
                         }).toList();
-    }
-
-    private String cleanHtml(String html) {
-        if (html == null || html.isBlank()) return "";
-        Document doc = Jsoup.parseBodyFragment(html);
-        for (Element br : doc.select("br")) {
-            br.replaceWith(new TextNode(" "));
-        }
-        return doc.body().text().trim();
     }
 }
