@@ -1,5 +1,6 @@
 package com.viking.generator.util;
 
+import com.viking.generator.util.pdf.PdfTypography;
 import org.openpdf.text.Document;
 import org.openpdf.text.Element;
 import org.openpdf.text.Image;
@@ -144,7 +145,7 @@ public class PassportPageEventHandler extends PdfPageEventHelper {
      * краю страницы (в образце {@code positionH relativeFrom="page" align="left"}),
      * сохраняя пропорции картинки. На портретной странице высота выходит впритык к верхнему
      * полю (как extent из образца: 56.4–56.6 pt при поле 56.7 pt). На альбомной (повёрнутой)
-     * странице контент сдвинут вниз увеличенным полем {@link PdfUIHelper#LANDSCAPE_MARGIN_TOP},
+     * странице контент сдвинут вниз увеличенным полем {@link PdfTypography#LANDSCAPE_MARGIN_TOP},
      * поэтому шапке разрешена полная ширина листа (842 pt) — цветочки уходят в правый угол,
      * а зазор {@link #HEADER_GAP} перед контентом сохраняется. Возвращает {@code null}
      * при некорректных пропорциях. Вынесено в статический метод для юнит-тестов геометрии.
@@ -166,8 +167,8 @@ public class PassportPageEventHandler extends PdfPageEventHelper {
         // контент сдвинут вниз полем LANDSCAPE_MARGIN_TOP, и полная ширина даёт высоту
         // ~80 pt при зазоре HEADER_GAP, так что картинка не перекрывает контент.
         float maxHeight = (pageWidth > pageHeight)
-                ? PdfUIHelper.LANDSCAPE_MARGIN_TOP - HEADER_GAP
-                : PdfUIHelper.MARGIN_TOP;
+                ? PdfTypography.LANDSCAPE_MARGIN_TOP - HEADER_GAP
+                : PdfTypography.MARGIN_TOP;
         if (height > maxHeight) {
             height = maxHeight;
         }
@@ -186,7 +187,7 @@ public class PassportPageEventHandler extends PdfPageEventHelper {
      * на отдельной строке под ними.
      */
     private void drawFooter(PdfWriter writer) {
-        BaseFont baseFont = PdfUIHelper.textBaseFont();
+        BaseFont baseFont = PdfTypography.textBaseFont();
         if (baseFont == null) {
             try {
                 baseFont = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.CP1252, false);
@@ -197,7 +198,7 @@ public class PassportPageEventHandler extends PdfPageEventHelper {
         }
         Rectangle page = writer.getPageSize();
         float pageWidth = page.getWidth();
-        float right = pageWidth - PdfUIHelper.MARGIN_RIGHT;
+        float right = pageWidth - PdfTypography.MARGIN_RIGHT;
         String pageNumber = String.valueOf(writer.getCurrentPageNumber());
 
         PdfContentByte cb = writer.getDirectContent();

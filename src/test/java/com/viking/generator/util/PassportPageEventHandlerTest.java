@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.viking.generator.util.pdf.PdfTypography;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.openpdf.text.Image;
@@ -42,7 +43,7 @@ class PassportPageEventHandlerTest {
         // Ширина — вся страница (595 pt), как extent 592.7 из образца.
         assertEquals(PORTRAIT_W, portrait.getWidth(), 1f, "Шапка должна занимать всю ширину листа: " + portrait);
         // Высота не может превышать верхнее поле — иначе перекроет контент.
-        assertTrue(portrait.getHeight() <= PdfUIHelper.MARGIN_TOP + EPS,
+        assertTrue(portrait.getHeight() <= PdfTypography.MARGIN_TOP + EPS,
                 "Высота шапки превышает верхнее поле: " + portrait);
     }
 
@@ -50,7 +51,7 @@ class PassportPageEventHandlerTest {
     @DisplayName("На альбомной странице шапка на всю ширину листа (цветы в правом углу), зазор HEADER_GAP сохранён")
     void landscapeHeaderSpansFullPageWidthAndKeepsGap() {
         // Контент на альбомной странице сдвинут вниз полем LANDSCAPE_MARGIN_TOP.
-        float landscapeContentTop = LANDSCAPE_H - PdfUIHelper.LANDSCAPE_MARGIN_TOP;
+        float landscapeContentTop = LANDSCAPE_H - PdfTypography.LANDSCAPE_MARGIN_TOP;
         Rectangle landscape = PassportPageEventHandler.headerPlacement(
                 LANDSCAPE_W, LANDSCAPE_H, IMG_W, IMG_H);
         assertNotNull(landscape);
@@ -63,7 +64,7 @@ class PassportPageEventHandlerTest {
         // иначе на альбомной странице закрашивается верхняя граница продолжающейся таблицы.
         assertTrue(landscape.getBottom() >= landscapeContentTop + PassportPageEventHandler.HEADER_GAP - EPS,
                 "Альбом: шапка не оставляет зазор HEADER_GAP перед контентом: " + landscape);
-        assertTrue(landscape.getHeight() <= PdfUIHelper.LANDSCAPE_MARGIN_TOP
+        assertTrue(landscape.getHeight() <= PdfTypography.LANDSCAPE_MARGIN_TOP
                 - PassportPageEventHandler.HEADER_GAP + EPS,
                 "Альбом: высота шапки превышает поле с зазором: " + landscape);
     }
