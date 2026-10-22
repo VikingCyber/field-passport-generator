@@ -15,9 +15,11 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -26,11 +28,19 @@ import java.util.stream.Stream;
 
 public class NoteStrategy implements ImageProviderStrategy {
     private static final Logger log = LoggerFactory.getLogger(NoteStrategy.class);
+
+    /** Имя файла-кэша «мёртвых» id (несуществующие вложения) — лежит вне каталога заметок,
+     *  чтобы не попадать в getExistingCacheIds. */
+    private static final String DEAD_IDS_FILE = ".notes-dead-ids";
+
     private final NoteImageLoader loader;
     private final Path cachePath;
     private final String subDir;
     private final String defaultExt;
     private final HeicConverter heicConverter;
+
+    /** Лениво загружаемый набор подтверждённо отсутствующих в API вложений. */
+    private volatile Set<String> deadIdsCache;
 
     public NoteStrategy(NoteImageLoader loader, NoteConfig config, HeicConverter heicConverter) {
         this.loader = loader;
@@ -52,8 +62,10 @@ public class NoteStrategy implements ImageProviderStrategy {
         repairMisnamedFiles();
 
         Set<String> existingIds = getExistingCacheIds();
+        Set<String> deadIds = deadIds();
         List<String> toFetch = ids.stream()
                 .filter(id -> !existingIds.contains(id))
+                .filter(id -> !deadIds.contains(id))
                 .toList();
 
         if (toFetch.isEmpty()) {
@@ -62,10 +74,14 @@ public class NoteStrategy implements ImageProviderStrategy {
         }
 
         log.info("=== Synchronization started: {} new photos ====", toFetch.size());
+        if (!deadIds.isEmpty()) {
+            log.info("Пропущено несуществующих вложений (кэш мёртвых id): {}", deadIds.size());
+        }
 
         int totalLinksFound = 0;
         int totalDownloaded = 0;
         int totalFailed = 0;
+        Set<String> newlyDead = new HashSet<>();
 
         // 2. Твой батчинг по 50 штук
         for (int i = 0; i < toFetch.size(); i += 50) {
@@ -81,9 +97,16 @@ public class NoteStrategy implements ImageProviderStrategy {
                 persist(id, photo != null ? photo : resource.data());
             });
 
+            // Подтверждённое отсутствие (200 + success:true, id нет в data) — «мёртвые» id
+            newlyDead.addAll(result.confirmedAbsentIds());
+
             totalLinksFound += result.linksFound();
             totalDownloaded += result.images().size();
             totalFailed += result.downloadErrors();
+        }
+
+        if (!newlyDead.isEmpty()) {
+            persistDeadIds(deadIds, newlyDead);
         }
 
         printCacheReport(toFetch.size(), totalLinksFound, totalDownloaded, totalFailed);
@@ -97,7 +120,7 @@ public class NoteStrategy implements ImageProviderStrategy {
 
         Path localPath = resolvePath(cachePath, id + ".*", id + "." + defaultExt, subDir);
         Optional<byte[]> raw = readFromDisk(localPath);
-        if (raw.isEmpty()) {
+        if (raw.isEmpty() && !deadIds().contains(id)) {
             LoadedResource resource = loader.load(List.of(id)).images().get(id);
             if (resource != null) {
                 byte[] bytes = resource.data();
@@ -201,6 +224,54 @@ public class NoteStrategy implements ImageProviderStrategy {
     @Override
     public SourceType getType() {
         return SourceType.NOTE;
+    }
+
+    // ================= Кэш «мёртвых» id (несуществующие вложения) =================
+
+    /** Файл с id вложений, для которых API подтвердил отсутствие (200 + success, id нет в data). */
+    private Path deadIdsFile() {
+        return cachePath.resolve(DEAD_IDS_FILE);
+    }
+
+    /** Лениво загружает и кэширует «мёртвые» id, чтобы не читать файл на каждое вложение. */
+    private Set<String> deadIds() {
+        if (deadIdsCache == null) {
+            deadIdsCache = loadDeadIds();
+        }
+        return deadIdsCache;
+    }
+
+    private Set<String> loadDeadIds() {
+        Path file = deadIdsFile();
+        if (!Files.isRegularFile(file)) return Set.of();
+        try {
+            return Files.readAllLines(file).stream()
+                    .map(String::trim)
+                    .filter(line -> !line.isEmpty())
+                    .collect(Collectors.toSet());
+        } catch (IOException e) {
+            log.warn("Не удалось прочитать файл мёртвых id {}: {}", file, e.getMessage());
+            return Set.of();
+        }
+    }
+
+    /**
+     * Дописывает подтверждённо-отсутствующие id в файл «мёртвых» id, чтобы при следующих
+     * синхронизациях не опрашивать API заново. При неудаче записи только предупреждаем —
+     * это не влияет на основную синхронизацию (такие id просто будут опрошены ещё раз).
+     */
+    private void persistDeadIds(Set<String> alreadyDead, Set<String> newlyDead) {
+        Set<String> merged = new HashSet<>(alreadyDead);
+        merged.addAll(newlyDead);
+        Path file = deadIdsFile();
+        try {
+            Files.createDirectories(file.getParent());
+            Files.write(file, merged.stream().sorted().toList(), StandardCharsets.UTF_8);
+            deadIdsCache = merged;
+            log.info("Кэш мёртвых id обновлён: {} несуществующих вложений", merged.size());
+        } catch (IOException e) {
+            log.warn("Не удалось записать файл мёртвых id {}: {}", file, e.getMessage());
+        }
     }
 
     private void printCacheReport(int totalMissing, int totalLinksFound, int totalDownloaded, int totalFailed) {
