@@ -33,12 +33,51 @@ public final class PdfUIHelper {
     private static final Logger log = LoggerFactory.getLogger(PdfUIHelper.class);
     // Переводим см в пункты (1 см = 28.35f)
     private static final float CM_TO_PT = 28.35f;
-    
+
+    /**
+     * Максимальная ширина спутникового снимка NDVI, pt. Полезная ширина
+     * альбомной страницы очень велика, но снимок достаточно показывать
+     * ~500 pt (≈17 см) — это и есть размер «до ширины текстового поля».
+     */
+    private static final float SATELLITE_IMG_MAX_WIDTH = 500f;
+    /**
+     * Максимальная высота спутникового снимка NDVI, pt.
+     * <p>
+     * Полезная высота альбомной страницы ≈447 pt (595 − 90.72 верх − 56.7 низ).
+     * Над снимком в общей keepTogether-таблице ещё подпись (2 строки 10 pt
+     * ≈ 24 pt + 10 pt отступ) и spacingBefore таблицы (20 pt), поэтому снимку
+     * доступно ≈390 pt. Ограничение в 380 pt страхует: подпись и снимок
+     * гарантированно помещаются на одну страницу, и таблицу не разрывает.
+     * <p>
+     * Для первого снимка Раздела 5 запас меньше: в той же таблице будет ещё
+     * заголовок раздела (строка 12 pt + отступ ≈ 26 pt), поэтому первому снимку
+     * выделяется 360 pt — тогда заголовок раздела не отрывается от снимка.
+     */
+    private static final float SATELLITE_IMG_MAX_HEIGHT = 380f;
+    private static final float SATELLITE_IMG_MAX_HEIGHT_FIRST = 360f;
+
+    /**
+     * Максимальная высота графика Раздела 4, pt. Заголовок «Раздел 4. Индексы»
+     * лежит в той же keepTogether-таблице, что и график: чтобы они не разъезжались
+     * по разным страницам, сумма «заголовок + график» должна умещаться в полезную
+     * высоту (~447 pt). Заголовок ≈24 pt + отступ ячейки 4 pt + отступ таблицы
+     * 20 pt ≈ 48 pt, поэтому графику доступно ≈399 pt — берём с запасом 395 pt.
+     * Чем больше график на листе, тем крупнее читаются подписи осей и легенда.
+     */
+    private static final float CHART_IMG_MAX_HEIGHT = 395f;
+
     // Отступы страницы
     public static final float MARGIN_LEFT = 3.0f * CM_TO_PT;
     public static final float MARGIN_RIGHT = 1.5f * CM_TO_PT;
     public static final float MARGIN_TOP = 2.0f * CM_TO_PT;
     public static final float MARGIN_BOTTOM = 2.0f * CM_TO_PT;
+    /**
+     * Ширина текстовой области альбомной страницы: 842 − 3 см − 1.5 см.
+     * Объявлена после MARGIN_LEFT/MARGIN_RIGHT — статические поля инициализируются
+     * в порядке объявления, иначе отступы ещё нулевые.
+     */
+    private static final float LANDSCAPE_TEXT_WIDTH =
+            PageSize.A4.rotate().getWidth() - MARGIN_LEFT - MARGIN_RIGHT;
     /**
      * Верхнее поле повёрнутых (альбомных) страниц. Шапка на всю ширину листа (842 pt
      * при пропорциях 1240×118) имеет высоту ~80 pt — это больше портретного поля (56.7 pt),
@@ -473,7 +512,10 @@ public final class PdfUIHelper {
 
         try {
             if (imageBytes != null && imageBytes.length > 0) {
-                Image img = Image.getInstance(imageBytes);
+                // Фото в PDF не нужно в оригинальном разрешении (до 15 МБ): уменьшаем
+                // и пережимаем в JPEG. Ошибки декодирования отдаются оригиналом.
+                byte[] fitBytes = ImageOptimizer.forPhoto(imageBytes);
+                Image img = Image.getInstance(fitBytes);
 
                 float width = img.getWidth();
                 float height = img.getHeight();
@@ -594,7 +636,18 @@ public final class PdfUIHelper {
             cell.addElement(new Phrase(NO_DATA, FONT_TEXT));
         } else {
             try {
+                // График в оригинале может быть очень крупным (например 2000×1200 px,
+                // встраивается в точках как есть). Без scaleToFit график вместе
+                // с заголовком не помещается в полезную высоту альбомной страницы,
+                // и keepTogether-таблица разрывается: заголовок на одной странице,
+                // график на другой. Ограничиваем по ширине текстовой области и высоте,
+                // чтобы заголовок + график всегда были рядом. По качеству не сжимаем:
+                // в PDF уходит исходный график, при этом пользователь просил графики
+                // не пережимать.
                 Image img = Image.getInstance(chartImage.getImageBytes());
+                float maxW = Math.min(LANDSCAPE_TEXT_WIDTH, img.getWidth());
+                float maxH = Math.min(CHART_IMG_MAX_HEIGHT, img.getHeight());
+                img.scaleToFit(maxW, maxH);
                 img.setAlignment(Image.ALIGN_CENTER);
                 cell.addElement(img);
             } catch (Exception e) {
@@ -618,10 +671,20 @@ public final class PdfUIHelper {
     }
 
     /**
-     * Выводит спутниковые снимки один за другим в столбик
+     * Выводит спутниковые снимки один за другим в столбик.
+     * <p>
+     * Заголовок раздела (если передан) встраивается внутрь первой keepTogether-таблицы,
+     * прямо перед подписью первого снимка. Так заголовок гарантированно остаётся
+     * на одной странице с первым снимком и не отрывается (раньше добавлялся
+     * отдельным абзацем, и первый снимок не влезал вместе с ним в полезную высоту
+     * страницы — заголовок оставался внизу одной страницы, снимок уезжал на другую).
+     * Из-за дополнительного заголовка первому снимку выделяется меньший лимит
+     * высоты (SATELLITE_IMG_MAX_HEIGHT_FIRST), остальным — обычный.
      */
-    public static void addSatelliteImagesColumn(Document document, List<SatelliteImage> images) throws DocumentException {
-        for (SatelliteImage satImg : images) {
+    public static void addSatelliteImagesColumn(Document document, String sectionTitle,
+                                                List<SatelliteImage> satelliteImages) throws DocumentException {
+        for (int i = 0; i < satelliteImages.size(); i++) {
+            SatelliteImage satImg = satelliteImages.get(i);
             // Создаем таблицу из одной колонки, чтобы картинка и текст не разрывались переносом страницы
             PdfPTable table = new PdfPTable(1);
             table.setWidthPercentage(100f);
@@ -633,15 +696,36 @@ public final class PdfUIHelper {
             cell.setHorizontalAlignment(Element.ALIGN_CENTER);
 
             try {
+                if (i == 0 && sectionTitle != null) {
+                    Paragraph title = createSectionTitle(sectionTitle);
+                    title.setAlignment(Element.ALIGN_LEFT);
+                    cell.addElement(title);
+                }
+
                 Paragraph p = new Paragraph(formatSatelliteCaption(satImg), FONT_TABLE_BODY);
                 p.setAlignment(Element.ALIGN_CENTER);
                 p.setSpacingAfter(10f);
                 cell.addElement(p);
 
                 if (satImg.getImageBytes() != null) {
-                    Image img = Image.getInstance(satImg.getImageBytes());
+                    // Спутниковые снимки до 4 МБ в оригинале не нужны в PDF: уменьшаем
+                    // до ширины текстового поля и пережимаем в JPEG (снимки NDVI — RGBA,
+                    // фон склеивается в непрозрачный белый). Ошибка декодирования
+                    // вернёт исходные байты.
+                    byte[] fitBytes = ImageOptimizer.forSatellite(satImg.getImageBytes());
+                    Image img = Image.getInstance(fitBytes);
 
-                    img.scaleToFit(500f, 1000f);
+                    // Не растягиваем снимок сверх нативного размера (иначе мелкие
+                    // исходники ~400 px начинают «пикселить») и ограничиваем высоту,
+                    // чтобы подпись + снимок влезали в полезную высоту альбомной
+                    // страницы (~447 pt) — иначе keepTogether разрывает блок:
+                    // подпись остаётся на одной странице, снимок уходит на другую.
+                    // Первый снимок идёт в той же таблице, что и заголовок раздела,
+                    // поэтому для него запас по высоте меньше.
+                    float maxW = Math.min(SATELLITE_IMG_MAX_WIDTH, img.getWidth());
+                    float maxMaxH = i == 0 ? SATELLITE_IMG_MAX_HEIGHT_FIRST : SATELLITE_IMG_MAX_HEIGHT;
+                    float maxH = Math.min(maxMaxH, img.getHeight());
+                    img.scaleToFit(maxW, maxH);
                     img.setAlignment(Image.ALIGN_CENTER);
                     cell.addElement(img);
                 }

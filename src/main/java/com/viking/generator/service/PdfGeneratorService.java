@@ -8,6 +8,7 @@ import com.viking.generator.model.tables.NoteTableRow;
 import com.viking.generator.model.tables.OperationTableRow;
 import com.viking.generator.model.tables.TechJournalTableRow;
 import com.viking.generator.util.FileUtils;
+import com.viking.generator.util.ImageOptimizer;
 import com.viking.generator.util.NoteImageComparators;
 import com.viking.generator.util.PassportPageEventHandler;
 import com.viking.generator.util.PdfUIHelper;
@@ -88,11 +89,19 @@ public class PdfGeneratorService implements PassportGeneratorService {
         boolean isMovedSuccessfully = false;
 
         try {
+            // Изображения сжимаются ОДИН раз до двух проходов рендера. Раньше оптимизация
+            // выполнялась внутри каждого прохода (картинки декодировались и пережимались
+            // дважды без видимого прогресса в логах) — это было основной причиной долгой
+            // генерации.
+            optimizeImagesOnce(passport);
+
             // Pass 1 — черновик в память: узнаём номера страниц разделов.
             // Отрисовка детерминирована: те же данные и тот же код дают те же разрывы страниц,
             // поэтому в финальном файле разделы смещены ровно на страницу содержания.
             SectionPageRecorder recorder = new SectionPageRecorder();
+            log.info("Проход 1/2: черновой рендер разделов (сбор содержания)...");
             renderSectionsToBytes(passport, recorder);
+            log.info("Проход 2/2: финальный рендер с содержанием...");
 
             renderToTemp(tempPath, passport, recorder);
         } catch (DocumentException e) {
@@ -138,6 +147,61 @@ public class PdfGeneratorService implements PassportGeneratorService {
             log.error("Директория: {} не готова к работе: {}", outputDir.toAbsolutePath(),
                     e.getMessage());
             throw new RuntimeException("Подготовка хранилища не удалась", e);
+        }
+    }
+
+    /**
+     * Сжимает все изображения паспорта ОДИН раз перед двумя проходами рендера
+     * и кладёт сжатые байты обратно в модель. При следующей генерации
+     * {@code ImageCacheService.fillImages} заново прочитает оригиналы с диска,
+     * поэтому модель не накапливает сжатие, а кэш на диске не трогается.
+     * Прогресс логируется, чтобы было видно, что генерация работает, а не висит.
+     */
+    private void optimizeImagesOnce(FieldPassport passport) {
+        List<NoteImage> notes = passport.notesSection() != null
+                ? passport.notesSection().images() : null;
+        List<SatelliteImage> sats = passport.satelliteImages();
+
+        int total = 0;
+        if (notes != null) {
+            total += (int) notes.stream().filter(n -> n.getImageBytes() != null).count();
+        }
+        if (sats != null) {
+            total += (int) sats.stream().filter(s -> s.getImageBytes() != null).count();
+        }
+        if (total == 0) {
+            log.debug("Изображений для сжатия нет.");
+            return;
+        }
+
+        log.info("Сжатие изображений: 0/{} (один общий прогон для черновика и финала)", total);
+        int done = 0;
+        if (notes != null) {
+            for (NoteImage n : notes) {
+                if (n.getImageBytes() == null) {
+                    continue;
+                }
+                n.setImageBytes(ImageOptimizer.forPhoto(n.getImageBytes()));
+                done++;
+                logProgress(done, total);
+            }
+        }
+        if (sats != null) {
+            for (SatelliteImage s : sats) {
+                if (s.getImageBytes() == null) {
+                    continue;
+                }
+                s.setImageBytes(ImageOptimizer.forSatellite(s.getImageBytes()));
+                done++;
+                logProgress(done, total);
+            }
+        }
+        log.info("Сжатие изображений завершено: {}/{}", done, total);
+    }
+
+    private static void logProgress(int done, int total) {
+        if (done == total || done % 25 == 0) {
+            log.info("Сжатие изображений: {}/{}", done, total);
         }
     }
 
@@ -230,14 +294,16 @@ public class PdfGeneratorService implements PassportGeneratorService {
         // --- Section 5. Satellite Images ---
         document.newPage();
         markSection(pages, SECTION_5, writer);
-        document.add(PdfUIHelper.createSectionTitle(SECTION_5));
 
         List<SatelliteImage> satelliteImages = passport.satelliteImages();
 
         if (satelliteImages == null || satelliteImages.isEmpty()) {
+            document.add(PdfUIHelper.createSectionTitle(SECTION_5));
             document.add(PdfUIHelper.createParagraph(PdfUIHelper.NO_DATA));
         } else {
-            PdfUIHelper.addSatelliteImagesColumn(document, satelliteImages);
+            // Заголовок раздела передаём внутрь: он встраивается в первую
+            // keepTogether-таблицу со снимком и не отрывается от него.
+            PdfUIHelper.addSatelliteImagesColumn(document, SECTION_5, satelliteImages);
         }
 
         // --- Section 6 ---
