@@ -25,7 +25,9 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import org.openpdf.text.Document;
@@ -38,13 +40,6 @@ import org.slf4j.LoggerFactory;
 public class PdfGeneratorService implements PassportGeneratorService {
 
     private static final Logger log = LoggerFactory.getLogger(PdfGeneratorService.class);
-
-    /**
-     * Сдвиг страниц разделов относительно чернового прохода: финальный документ
-     * получает одну страницу содержания перед «Разделом 1». Если содержание
-     * перестанет помещаться на одну страницу, сдвиг надо пересчитать.
-     */
-    private static final int TOC_PAGE_SHIFT = 1;
 
     /**
      * Компоненты разделов в порядке следования. Каждый раздел — отдельный класс,
@@ -96,11 +91,11 @@ public class PdfGeneratorService implements PassportGeneratorService {
             // генерации.
             optimizeImagesOnce(passport);
 
-            // Pass 1 — черновик в память: узнаём номера страниц разделов.
-            // Отрисовка детерминирована: те же данные и тот же код дают те же разрывы страниц,
-            // поэтому в финальном файле разделы смещены ровно на страницу содержания.
+            // Pass 1 — черновик в память: весь макет (содержание + разделы), чтобы
+            // SectionPageRecorder собрал АБСОЛЮТНЫЕ номера страниц разделов: черновик
+            // занимает столько же места, сколько финальный файл, поэтому сдвига нет.
             SectionPageRecorder recorder = new SectionPageRecorder();
-            log.info("Проход 1/2: черновой рендер разделов (сбор содержания)...");
+            log.info("Проход 1/2: черновой рендер макета (сбор содержания)...");
             renderSectionsToBytes(passport, recorder);
             log.info("Проход 2/2: финальный рендер с содержанием...");
 
@@ -216,8 +211,9 @@ public class PdfGeneratorService implements PassportGeneratorService {
     }
 
     /**
-     * Черновой проход: рисует только разделы (без шапки и содержания) в память,
-     * чтобы SectionPageRecorder собрал фактические номера страниц разделов.
+     * Черновой проход: рисует шапку, содержание и разделы в память. Содержание
+     * занимает ровно столько места, сколько в финале (номера-заглушки не меняют
+     * высоту строк), поэтому рекордер собирает уже абсолютные номера страниц.
      */
     private void renderSectionsToBytes(FieldPassport passport, SectionPageRecorder recorder)
             throws DocumentException, IOException {
@@ -227,14 +223,42 @@ public class PdfGeneratorService implements PassportGeneratorService {
             PdfWriter writer = PdfWriter.getInstance(document, bos);
             writer.setPageEvent(new PassportPageEventHandler());
             document.open();
+            addFrontMatter(document, placeholderPages());
             fillSections(document, writer, passport, recorder);
             log.debug("Черновой проход завершён. Страниц: {}", writer.getCurrentPageNumber());
         }
     }
 
     /**
+     * Шапка и содержание. Вызывается в обоих проходах, поэтому черновик занимает
+     * столько же места, сколько финальный файл, и номера разделов из черновика
+     * корректны без сдвига. После содержания — принудительный разрыв страницы:
+     * раздел 1 всегда начинается с новой страницы.
+     */
+    private static void addFrontMatter(Document document, Map<String, Integer> pages)
+            throws DocumentException {
+        document.add(PdfTypography.createPassportTitle());
+        pages.forEach((title, page) -> document.add(PdfToc.createTocLine(title, page)));
+        document.newPage();
+    }
+
+    /**
+     * Заглушка для чернового прохода: те же строки содержания, но с нулевыми номерами.
+     * Ширина номера не влияет на высоту строки содержания (одна строка, ширина колонки
+     * не меньше минимума), поэтому высота заглушки идентична финальной.
+     */
+    private static Map<String, Integer> placeholderPages() {
+        Map<String, Integer> pages = new LinkedHashMap<>();
+        for (PdfSectionRenderer section : SECTIONS) {
+            pages.put(section.title(), 0);
+        }
+        return pages;
+    }
+
+    /**
      * Финальный проход: шапка «Паспорт поля», содержание и разделы. Номера страниц
-     * в содержании берутся из чернового прохода со сдвигом на страницу содержания.
+     * в содержании берутся из чернового прохода: поскольку черновик содержит то же
+     * содержание, они уже абсолютные.
      */
     private void renderToTemp(Path tempPath, FieldPassport passport, SectionPageRecorder recorder)
             throws DocumentException, IOException {
@@ -246,11 +270,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
             document.open();
             log.debug("PDF документ открыт (финальный проход)");
 
-            document.add(PdfTypography.createPassportTitle());
-            recorder.sectionTitles().forEach((title, page) ->
-                    document.add(PdfToc.createTocLine(title, page + TOC_PAGE_SHIFT)));
-            document.newPage();
-
+            addFrontMatter(document, recorder.sectionTitles());
             fillSections(document, writer, passport, null);
         }
     }
