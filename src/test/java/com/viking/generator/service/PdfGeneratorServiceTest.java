@@ -16,6 +16,7 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDResources;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.apache.pdfbox.pdmodel.interactive.annotation.PDAnnotationLink;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -57,6 +58,13 @@ class PdfGeneratorServiceTest {
             assertTrue(page1.contains("Раздел 4. Индексы"), page1);
             assertTrue(page1.contains("Раздел 5. Спутниковые снимки NDVI"), page1);
             assertTrue(page1.contains("Раздел 6. Работающие механизаторы"), page1);
+
+            // Кликабельное содержание: каждая строка — внутренняя ссылка на страницу раздела.
+            long links = doc.getPage(0).getAnnotations().stream()
+                    .filter(a -> a instanceof PDAnnotationLink)
+                    .count();
+            assertTrue(links >= 6,
+                    "На странице содержания должно быть не меньше 6 ссылок на разделы, найдено: " + links);
         }
     }
 

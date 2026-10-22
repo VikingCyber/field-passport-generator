@@ -1,12 +1,16 @@
 package com.viking.generator.util.pdf;
 
+import org.openpdf.text.Chunk;
 import org.openpdf.text.DocumentException;
 import org.openpdf.text.Element;
 import org.openpdf.text.PageSize;
 import org.openpdf.text.Phrase;
 import org.openpdf.text.Rectangle;
+import org.openpdf.text.pdf.PdfAction;
+import org.openpdf.text.pdf.PdfDestination;
 import org.openpdf.text.pdf.PdfPCell;
 import org.openpdf.text.pdf.PdfPTable;
+import org.openpdf.text.pdf.PdfWriter;
 import org.openpdf.text.pdf.draw.DottedLineSeparator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +41,16 @@ public final class PdfToc {
      * между названием и номером страницы.
      */
     public static PdfPTable createTocLine(String title, int page) {
+        return createTocLine(title, page, null);
+    }
+
+    /**
+     * Строка содержания с внутренней ссылкой на страницу раздела: клик по названию
+     * или номеру страницы переводит на страницу {@code page} (курсор-«рука»).
+     * Если writer равен {@code null} — ссылка не создаётся (например, в черновом
+     * проходе, где номера страниц ещё заглушечные).
+     */
+    public static PdfPTable createTocLine(String title, int page, PdfWriter writer) {
         String pageText = String.valueOf(page);
         float titleTick = Math.max(PdfTypography.measureText(title, PdfTypography.FONT_TEXT) + 2f, 20f);
         float pageTick = Math.max(PdfTypography.measureText(pageText, PdfTypography.FONT_TEXT) + 2f, 14f);
@@ -59,7 +73,23 @@ public final class PdfToc {
             log.error("Failed to set TOC line widths: {}", e.getMessage());
         }
 
-        PdfPCell titleCell = new PdfPCell(new Phrase(title, PdfTypography.FONT_TEXT));
+        Chunk linkTitle = null;
+        Chunk linkPage = null;
+        if (writer != null) {
+            // Внутренняя ссылка на страницу раздела: клик по названию или номеру
+            // переводит на страницу. Ссылка не создаётся в черновом проходе
+            // (writer == null), где номера страниц ещё заглушечные и вести некуда.
+            PdfAction action = PdfAction.gotoLocalPage(
+                    page, new PdfDestination(PdfDestination.FIT), writer);
+            linkTitle = new Chunk(title, PdfTypography.FONT_TEXT);
+            linkTitle.setAction(action);
+            linkPage = new Chunk(pageText, PdfTypography.FONT_TEXT);
+            linkPage.setAction(action);
+        }
+
+        PdfPCell titleCell = new PdfPCell(linkTitle != null
+                ? new Phrase(linkTitle)
+                : new Phrase(title, PdfTypography.FONT_TEXT));
         titleCell.setBorder(Rectangle.NO_BORDER);
         titleCell.setPadding(0f);
         titleCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
@@ -76,7 +106,9 @@ public final class PdfToc {
         dotsCell.addElement(dots);
         dotsCell.setVerticalAlignment(Element.ALIGN_BOTTOM);
 
-        PdfPCell pageCell = new PdfPCell(new Phrase(pageText, PdfTypography.FONT_TEXT));
+        PdfPCell pageCell = new PdfPCell(linkPage != null
+                ? new Phrase(linkPage)
+                : new Phrase(pageText, PdfTypography.FONT_TEXT));
         pageCell.setBorder(Rectangle.NO_BORDER);
         pageCell.setPadding(0f);
         pageCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
