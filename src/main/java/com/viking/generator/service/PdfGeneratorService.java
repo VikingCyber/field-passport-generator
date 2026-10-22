@@ -294,14 +294,16 @@ public class PdfGeneratorService implements PassportGeneratorService {
         // --- Section 5. Satellite Images ---
         document.newPage();
         markSection(pages, SECTION_5, writer);
-        document.add(PdfUIHelper.createSectionTitle(SECTION_5));
 
         List<SatelliteImage> satelliteImages = passport.satelliteImages();
 
         if (satelliteImages == null || satelliteImages.isEmpty()) {
+            document.add(PdfUIHelper.createSectionTitle(SECTION_5));
             document.add(PdfUIHelper.createParagraph(PdfUIHelper.NO_DATA));
         } else {
-            PdfUIHelper.addSatelliteImagesColumn(document, satelliteImages);
+            // Заголовок раздела передаём внутрь: он встраивается в первую
+            // keepTogether-таблицу со снимком и не отрывается от него.
+            PdfUIHelper.addSatelliteImagesColumn(document, SECTION_5, satelliteImages);
         }
 
         // --- Section 6 ---
