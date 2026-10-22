@@ -160,7 +160,7 @@ public class PassportOrchestrator {
             acquired = true;
             generationTracker.lock(key);
             log.debug("Обработка поля {}: Загрузка данных...", passport.generalInfo().fieldName());
-            syncService.prepareSinglePassport(passport);
+            syncService.prepareSinglePassport(passport, force);
             log.debug("Обработка поля {}: Рендеринг PDF...", passport.generalInfo().fieldName());
             pdfService.generate(passport);
             if (onPassportGenerated != null) {

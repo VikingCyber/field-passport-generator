@@ -108,20 +108,31 @@ public class SyncService {
      * @param passport the passport whose images should be cached.
      */
     public void prepareSinglePassport(FieldPassport passport) {
+        prepareSinglePassport(passport, false);
+    }
+
+    /**
+     * Ensures all images referenced by a single passport are present in the cache.
+     *
+     * @param passport the passport whose images should be cached.
+     * @param force    true — перегенерировать изображения (график из свежих метаданных),
+     *                 даже если файлы уже лежат в кэше.
+     */
+    public void prepareSinglePassport(FieldPassport passport, boolean force) {
         log.debug("Sync images for field: {}, year: {}",
                 passport.generalInfo().fieldName(),
                 passport.generalInfo().year());
 
         if (passport.satelliteImages() != null) {
-            cacheService.fillImages(passport.satelliteImages());
+            cacheService.fillImages(passport.satelliteImages(), force);
         }
 
         if (passport.notesSection() != null && passport.notesSection().images() != null) {
-            cacheService.fillImages(passport.notesSection().images());
+            cacheService.fillImages(passport.notesSection().images(), force);
         }
 
         if (passport.indexChart() != null) {
-            cacheService.fillImages(List.of(passport.indexChart()));
+            cacheService.fillImages(List.of(passport.indexChart()), force);
         }
 
     }

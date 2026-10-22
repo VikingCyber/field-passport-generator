@@ -29,6 +29,19 @@ public interface ImageProviderStrategy {
 
     void process(ImageSource source);
 
+    /**
+     * Обрабатывает источник изображения с флагом принудительной перегенерации.
+     * <p>По умолчанию делегирует в {@link #process(ImageSource)} — поведение без перегенерации.
+     * Стратегии, которым важно пересоздавать кэш при {@code force == true} (например, график
+     * из свежих метаданных), переопределяют этот метод.</p>
+     *
+     * @param source источник изображения (снимок, фото заметки или график)
+     * @param force  true — перегенерировать контент даже если файл уже есть в кэше
+     */
+    default void process(ImageSource source, boolean force) {
+        process(source);
+    }
+
     SourceType getType();
 
     default Path resolvePath(Path root, String fileNamePattern, String defaultName, String... subDirs) {

@@ -37,10 +37,21 @@ public class ImageCacheService {
     }
 
     public void fillImages(List<? extends ImageSource> images) {
+        fillImages(images, false);
+    }
+
+    /**
+     * Заполняет кэш изображений, при {@code force == true} запрашивая перегенерацию контента
+     * (актуально для графиков, которые строятся из свежих метаданных).
+     *
+     * @param images источники изображений
+     * @param force  true — перегенерировать даже если файл уже лежит в кэше
+     */
+    public void fillImages(List<? extends ImageSource> images, boolean force) {
         for (ImageSource img : images) {
             ImageProviderStrategy strategy = registry.get(img.getType());
             if (strategy != null) {
-                strategy.process(img);
+                strategy.process(img, force);
             }
         }
     }
