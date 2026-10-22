@@ -46,7 +46,11 @@ public class PassportOrchestrator {
     }
 
     public PassportStatus getPassportStatus(String fieldId, int year) {
-        if (generationTracker.isProcessing(new PassportKey(fieldId, year))) {
+        PassportKey key = new PassportKey(fieldId, year);
+        if (generationTracker.isQueued(key)) {
+            return PassportStatus.QUEUED;
+        }
+        if (generationTracker.isProcessing(key)) {
             return PassportStatus.PROCESSING;
         }
         return getVerifiedPassportPath(fieldId, year).isPresent() ? PassportStatus.READY : PassportStatus.NOT_FOUND;
@@ -57,6 +61,16 @@ public class PassportOrchestrator {
         return summaries.stream()
                 .map(s -> {
                     PassportKey key = new PassportKey(s.id(), s.year());
+                    if (generationTracker.isQueued(key)) {
+                        return new PassportSummary(
+                                s.id(),
+                                s.fieldName(),
+                                s.cropName(),
+                                s.year(),
+                                s.area(),
+                                PassportStatus.QUEUED.name()
+                        );
+                    }
                     if (generationTracker.isProcessing(key)) {
                         return new PassportSummary(
                                 s.id(),
@@ -149,9 +163,11 @@ public class PassportOrchestrator {
         }
         boolean acquired = false;
         try {
+            // Ожидание свободного слота. Статус паспорта при этом — QUEUED (в очереди),
+            // поэтому долгое ожидание больше не «съедает» TTL активной блокировки.
             memoryGuard.acquire();
             acquired = true;
-            generationTracker.lock(key);
+            generationTracker.markActive(key);
             log.debug("Обработка поля {}: Загрузка данных...", passport.generalInfo().fieldName());
             syncService.prepareSinglePassport(passport, force);
             log.debug("Обработка поля {}: Рендеринг PDF...", passport.generalInfo().fieldName());
