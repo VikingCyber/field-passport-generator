@@ -2,6 +2,7 @@ package com.viking.generator.service.orchestration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -18,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
@@ -69,9 +71,10 @@ class PassportOrchestratorTest {
         // --- ASSERT ---
         // Дожидаемся, пока виртуальный поток дойдёт до ветки пропуска
         awaitUntil(skipBranchReached::get, 5000, "Поток не дошёл до ветки «паспорт уже существует»");
-        // После завершения пропуска блокировка обязана быть снята.
+        // После завершения пропуска паспорт не должен числиться ни в очереди, ни в активной генерации.
         // БАГ: tryLock уже записал ключ, а ветка пропуска выходит без unlock → ключ висит до TTL (10 минут)
-        awaitUntil(() -> generationTracker.getActiveLocks().isEmpty(), 5000,
+        awaitUntil(() -> generationTracker.getQueuedLocks().isEmpty()
+                        && generationTracker.getActiveLocks().isEmpty(), 5000,
                 "После пропуска существующего паспорта осталась фантомная блокировка");
         assertEquals(PassportStatus.READY, orchestrator.getPassportStatus("field-1", 2025),
                 "Существующий паспорт должен остаться READY, а не стать PROCESSING");
@@ -112,6 +115,53 @@ class PassportOrchestratorTest {
         // --- ASSERT ---
         awaitUntil(() -> generateCalls.get() > 0, 5000,
                 "Повторная генерация с force=true молча пропущена из-за фантомной блокировки");
+    }
+
+    @Test
+    @DisplayName("Паспорт, ожидающий слот в массовой генерации, остаётся QUEUED и не теряет позицию по TTL")
+    void waitingPassportMustNotLoseLockByTtlWhileHoldingSlot() throws Exception {
+        // Короткий TTL (1,2 с) и всего 1 слот: один паспорт генерируется (завис на latch),
+        // второй ждёт слот дольше TTL и должен остаться в очереди (QUEUED).
+        GenerationTracker shortTtlTracker = new GenerationTracker(1_200);
+        PassportOrchestrator oneSlotOrchestrator = new PassportOrchestrator(
+                syncService, pdfService, cacheProvider, 1, p -> {}, shortTtlTracker);
+
+        FieldPassport first = passport("field-1", "Поле №1", 2025);
+        FieldPassport waiting = passport("field-2", "Поле №2", 2025);
+        CountDownLatch holdGeneration = new CountDownLatch(1);
+        // Генерация любого паспорта «зависает», пока держим единственный слот занятым.
+        // Кто именно займёт слот первым — гонка виртуальных потоков, нам это неважно:
+        // важно, что оставшийся в очереди не теряет позицию по TTL.
+        doAnswer(inv -> {
+            holdGeneration.await();
+            return null;
+        }).when(pdfService).generate(any());
+
+        try {
+            // --- ACT ---
+            oneSlotOrchestrator.processMassGeneration(List.of(first, waiting), true);
+
+            // Один паспорт вышел в активную генерацию, второй остался в очереди
+            awaitUntil(() -> shortTtlTracker.getActiveLocks().size() == 1
+                            && shortTtlTracker.getQueuedLocks().size() == 1, 5000,
+                    "Один паспорт должен генерироваться, второй — ждать слот");
+
+            // Ждём заметно дольше TTL активной блокировки (1,2 с)
+            Thread.sleep(2_500);
+
+            // --- ASSERT ---
+            // Ожидающий паспорт обязан остаться в очереди — позиция не теряется по TTL
+            assertEquals(1, shortTtlTracker.getQueuedLocks().size(),
+                    "Ожидающий паспорт не должен терять позицию в очереди по TTL");
+
+            // Через оркестратор его статус обязан быть QUEUED, а не READY/NOT_FOUND
+            PassportKey queuedKey = shortTtlTracker.getQueuedLocks().iterator().next();
+            assertEquals(PassportStatus.QUEUED,
+                    oneSlotOrchestrator.getPassportStatus(queuedKey.fieldId(), queuedKey.year()),
+                    "Статус ожидающего паспорта должен быть QUEUED");
+        } finally {
+            holdGeneration.countDown();
+        }
     }
 
     private FieldPassport passport(String fieldId, String fieldName, int year) {

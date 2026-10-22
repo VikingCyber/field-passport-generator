@@ -109,7 +109,7 @@
                         this.passports = this.passports.map(localP => {
                             let serverP = serverData.find(s => s.id === localP.id && s.year === localP.year);
                             if (serverP) {
-                                if (serverP.status === 'PROCESSING') {
+                                if (serverP.status === 'PROCESSING' || serverP.status === 'QUEUED') {
                                     stillProcessing = true;
                                 }
                                 if (localP.status !== serverP.status) {
@@ -294,14 +294,14 @@
           x-text="error"></div>
 
         <template x-for="p in filteredPassports" :key="p.id + '-' + p.year">
-          <button @click="selectPassport(p)" :disabled="p.status === 'PROCESSING'"
+          <button @click="selectPassport(p)" :disabled="p.status === 'PROCESSING' || p.status === 'QUEUED'"
             class="w-full text-left p-4 hover:bg-emerald-50/50 transition-colors duration-150 flex flex-col gap-1 focus:outline-none disabled:opacity-60 disabled:bg-amber-50/10"
             :class="selectedPassport && selectedPassport.id === p.id && selectedPassport.year === p.year ? 'bg-emerald-50 border-l-4 border-emerald-600 pl-3' : ''">
 
             <div class="flex justify-between items-start w-full">
               <span class="font-semibold text-gray-900 font-mono text-sm" x-text="p.fieldName"></span>
-              <span x-show="p.status === 'PROCESSING'" class="text-amber-500 animate-spin text-xs">🔄</span>
-              <span x-show="p.status !== 'PROCESSING'" class="text-xs font-mono text-gray-400"
+              <span x-show="p.status === 'PROCESSING' || p.status === 'QUEUED'" class="text-amber-500 animate-spin text-xs">🔄</span>
+              <span x-show="p.status !== 'PROCESSING' && p.status !== 'QUEUED'" class="text-xs font-mono text-gray-400"
                 x-text="'#' + p.id"></span>
             </div>
 
@@ -313,9 +313,10 @@
                 <span :class="{
                                       'text-emerald-600 font-semibold': p.status === 'READY',
                                       'text-amber-600 animate-pulse': p.status === 'PROCESSING',
+                                      'text-blue-500': p.status === 'QUEUED',
                                       'text-gray-400': p.status === 'NOT_FOUND'
                                   }"
-                  x-text="p.status === 'READY' ? '● PDF' : (p.status === 'PROCESSING' ? '⏳ Сборка...' : '○ Нет PDF')">
+                  x-text="p.status === 'READY' ? '● PDF' : (p.status === 'PROCESSING' ? '⏳ Сборка...' : (p.status === 'QUEUED' ? '⏳ В очереди...' : '○ Нет PDF'))">
                 </span>
                 <span x-text="'│ ' + p.area + ' га'"></span>
               </span>
@@ -348,25 +349,26 @@
 
             <div class="flex items-center gap-3">
               <button @click="generateSinglePassport(selectedPassport)"
-                :disabled="selectedPassport.status === 'PROCESSING'"
+                :disabled="selectedPassport.status === 'PROCESSING' || selectedPassport.status === 'QUEUED'"
                 class="px-3 py-1 font-semibold rounded text-xs shadow transition duration-150 flex items-center gap-1"
-                :class="selectedPassport.status === 'PROCESSING'
+                :class="selectedPassport.status === 'PROCESSING' || selectedPassport.status === 'QUEUED'
                     ? 'bg-amber-400 text-white cursor-wait'
                     : (selectedPassport.status === 'READY'
                         ? 'bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800'
                         : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800')">
                 <span
-                  x-text="selectedPassport.status === 'PROCESSING'
+                  x-text="selectedPassport.status === 'PROCESSING' || selectedPassport.status === 'QUEUED'
                       ? '⏳ Генерируется...'
                       : (selectedPassport.status === 'READY' ? '🔄 Обновить паспорт' : '➕ Сформировать паспорт')"></span>
               </button>
 
               <div class="text-xs px-3 py-1 rounded font-semibold tracking-wide" :class="{
                                  'bg-amber-100 text-amber-800 animate-pulse': selectedPassport.status === 'PROCESSING',
+                                 'bg-blue-100 text-blue-700 ring-1 ring-blue-300': selectedPassport.status === 'QUEUED',
                                  'bg-emerald-100 text-emerald-800': selectedPassport.status === 'READY',
                                  'bg-blue-100 text-blue-700 ring-1 ring-blue-300': selectedPassport.status === 'NOT_FOUND'
                              }"
-                x-text="selectedPassport.status === 'PROCESSING' ? '⏳ ГЕНЕРАЦИЯ В ПОТОКЕ...' : (selectedPassport.status === 'READY' ? '✓ ДОКУМЕНТ ГОТОВ' : '⚡ НЕ СГЕНЕРИРОВАН')">
+                x-text="selectedPassport.status === 'PROCESSING' ? '⏳ ГЕНЕРАЦИЯ В ПОТОКЕ...' : (selectedPassport.status === 'QUEUED' ? '⏳ В ОЧЕРЕДИ...' : (selectedPassport.status === 'READY' ? '✓ ДОКУМЕНТ ГОТОВ' : '⚡ НЕ СГЕНЕРИРОВАН'))">
               </div>
             </div>
           </div>
@@ -378,6 +380,14 @@
               </div>
               <p class="text-base font-semibold">Идет построение паспорта поля...</p>
               <p class="text-xs text-gray-400 mt-1">Оркестратор рендерит графики вегетации и формирует PDF.</p>
+            </div>
+
+            <div x-show="selectedPassport.status === 'QUEUED'"
+              class="absolute inset-0 bg-gray-900/80 z-20 flex flex-col items-center justify-center text-white p-4">
+              <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4">
+              </div>
+              <p class="text-base font-semibold">Паспорт в очереди на генерацию...</p>
+              <p class="text-xs text-gray-400 mt-1">Массовая генерация обрабатывает другие поля, слот скоро освободится.</p>
             </div>
 
             <div x-show="selectedPassport.status === 'NOT_FOUND'"
