@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
 
+import static com.viking.generator.util.StringUtils.cleanHtml;
+
 public class NoteMapper {
     private final ZoneId timezone;
     private static final Logger log = LoggerFactory.getLogger(NoteMapper.class);
@@ -54,8 +56,8 @@ public class NoteMapper {
 
             NoteTableRow noteRow = new NoteTableRow(
                     noteIndex,
-                    rawNote.title(),
-                    rawNote.text(),
+                    cleanHtml(rawNote.title()),
+                    cleanHtml(rawNote.text()),
                     rawNote.createdAt().atZoneSameInstant(timezone).toLocalDateTime(),
                     localUpdated
             );
