@@ -22,10 +22,16 @@ public interface ImageProviderStrategy {
      * For notes: triggers a bulk download of all images in batches of 50.
      * For satellites: synchronize the local 'history.json' file with the latest metadata
      * from the API.
+     * <p>Стратегии, которым предварительная синхронизация не нужна (например, графики
+     * строятся on-demand из локальных метаданных), используют реализацию по умолчанию
+     * — no-op.</p>
      *
      * @param ids a set of unique identifiers (Field IDs or Note IDs) to synchronize
      */
-    void synchronize(Set<String> ids);
+    default void synchronize(Set<String> ids) {
+        getLogger().debug("Стратегия {} не требует предварительной синхронизации: {}",
+                getType(), ids);
+    }
 
     void process(ImageSource source);
 

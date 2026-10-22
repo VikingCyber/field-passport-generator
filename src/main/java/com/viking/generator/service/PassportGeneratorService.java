@@ -3,7 +3,6 @@ package com.viking.generator.service;
 import com.viking.generator.model.FieldPassport;
 
 import java.nio.file.Path;
-import java.util.List;
 
 /**
  * Контракт для компонентов, обеспечивающих формирование документов
@@ -16,13 +15,6 @@ public interface PassportGeneratorService {
      * @param passport объект, содержащий исходные данные поля
      */
     void generate(FieldPassport passport);
-
-    /**
-     * Выполняет пакетное формирование документов для списка паспортов.
-     * 
-     * @param passports коллекция данных для обработки
-     */
-    void generateAll(List<FieldPassport> passports);
 
     Path resolvePassportPath(FieldPassport passport);
 }

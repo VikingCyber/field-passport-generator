@@ -87,6 +87,10 @@ public final class ConfigKeys {
             public static final String MAX_CONCURRENT_REQUESTS = "agro.notes.max-concurrent-requests";
         }
 
+        public static final class Meta {
+            public static final String MAX_CONCURRENT_REQUESTS = "agro.meta.max-concurrent-requests";
+        }
+
         public static final class Satellite {
             public static final String MAX_CONCURRENT_REQUESTS = "agro.satellite.max-concurrent-requests";
             public static final String CLOUD_THRESHOLD = "agro.satellite.cloud-threshold";

@@ -3,6 +3,7 @@ package com.viking.generator.data.provider;
 import com.viking.generator.model.FieldPassport;
 import com.viking.generator.model.common.PassportKey;
 import com.viking.generator.model.common.PassportStatus;
+import com.viking.generator.util.StringUtils;
 import com.viking.generator.web.dto.PassportSummary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -117,7 +118,7 @@ public class InMemoryDataProvider implements DataProvider, WebDataProvider {
     }
 
     private Path buildPdfPath(String fieldName, int year) {
-        String saveFileName = fieldName.replaceAll("[^a-zA-Zа-яА-Я0-9]", "_")
+        String saveFileName = StringUtils.sanitizeFileName(fieldName)
                 + "_" + year + extension;
         return Path.of(outputDir, saveFileName);
     }
