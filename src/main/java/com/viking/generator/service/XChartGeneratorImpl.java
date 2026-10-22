@@ -50,10 +50,14 @@ public class XChartGeneratorImpl implements ChartGenerator {
         this.height = config.height();
         Font baseFont = loadFontFromResource(config.fontPath());
         this.timezone = config.timezone();
-        this.titleFont = baseFont.deriveFont(Font.PLAIN, 22f);
-        this.tickFont = baseFont.deriveFont(Font.PLAIN, 14f);
-        this.legendFont = baseFont.deriveFont(Font.PLAIN, 12f);
-        this.axisTitleFont = baseFont.deriveFont(Font.PLAIN, 14f);
+        // Шрифты подняли (title 22→32, tick 14→20, legend 12→17, axis 14→18):
+        // график 2000×1200 px в PDF после масштабирования на страницу давал
+        // мелкие подписи осей/легенды, которые плохо читались. Больше размер
+        // пикселей при том же размере вывода — крупнее текст на листе.
+        this.titleFont = baseFont.deriveFont(Font.PLAIN, 32f);
+        this.tickFont = baseFont.deriveFont(Font.PLAIN, 20f);
+        this.legendFont = baseFont.deriveFont(Font.PLAIN, 17f);
+        this.axisTitleFont = baseFont.deriveFont(Font.PLAIN, 18f);
     }
 
     @Override
