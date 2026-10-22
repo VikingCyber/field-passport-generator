@@ -33,6 +33,23 @@ public final class PdfUIHelper {
     private static final Logger log = LoggerFactory.getLogger(PdfUIHelper.class);
     // Переводим см в пункты (1 см = 28.35f)
     private static final float CM_TO_PT = 28.35f;
+
+    /**
+     * Максимальная ширина спутникового снимка NDVI, pt. Полезная ширина
+     * альбомной страницы очень велика, но снимок достаточно показывать
+     * ~500 pt (≈17 см) — это и есть размер «до ширины текстового поля».
+     */
+    private static final float SATELLITE_IMG_MAX_WIDTH = 500f;
+    /**
+     * Максимальная высота спутникового снимка NDVI, pt.
+     * <p>
+     * Полезная высота альбомной страницы ≈447 pt (595 − 90.72 верх − 56.7 низ).
+     * Над снимком в общей keepTogether-таблице ещё подпись (2 строки 10 pt
+     * ≈ 24 pt + 10 pt отступ) и spacingBefore таблицы (20 pt), поэтому снимку
+     * доступно ≈390 pt. Ограничение в 380 pt страхует: подпись и снимок
+     * гарантированно помещаются на одну страницу, и таблицу не разрывает.
+     */
+    private static final float SATELLITE_IMG_MAX_HEIGHT = 380f;
     
     // Отступы страницы
     public static final float MARGIN_LEFT = 3.0f * CM_TO_PT;
@@ -649,7 +666,14 @@ public final class PdfUIHelper {
                     byte[] fitBytes = ImageOptimizer.forSatellite(satImg.getImageBytes());
                     Image img = Image.getInstance(fitBytes);
 
-                    img.scaleToFit(500f, 1000f);
+                    // Не растягиваем снимок сверх нативного размера (иначе мелкие
+                    // исходники ~400 px начинают «пикселить») и ограничиваем высоту,
+                    // чтобы подпись + снимок влезали в полезную высоту альбомной
+                    // страницы (~447 pt) — иначе keepTogether разрывает блок:
+                    // подпись остаётся на одной странице, снимок уходит на другую.
+                    float maxW = Math.min(SATELLITE_IMG_MAX_WIDTH, img.getWidth());
+                    float maxH = Math.min(SATELLITE_IMG_MAX_HEIGHT, img.getHeight());
+                    img.scaleToFit(maxW, maxH);
                     img.setAlignment(Image.ALIGN_CENTER);
                     cell.addElement(img);
                 }
