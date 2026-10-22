@@ -15,7 +15,7 @@ public record StoragePathsConfig(
         String chartPrefix,
         int chartWidth,
         int chartHeight,
-        Path chartFontPath
+        String chartFontPath
 ) {
     public Path getNotesPath() {
         return cacheBaseDir.resolve(notesDir);

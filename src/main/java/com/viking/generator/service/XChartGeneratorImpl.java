@@ -37,6 +37,16 @@ public class XChartGeneratorImpl implements ChartGenerator {
     private static final Color COLOR_MSI_MEAN = new Color(255, 0, 0);    // Красный
     private static final Color COLOR_GLI_MEAN = new Color(0, 255, 0);
 
+    /**
+     * Запасные шрифты на случай, если настроенный в конфигурации путь не найден
+     * в classpath (например, font-path указывает на отсутствующий NotoSans).
+     */
+    private static final List<String> FALLBACK_FONT_PATHS = List.of(
+            "fonts/arial.ttf",
+            "fonts/arialbd.ttf",
+            "arial.ttf"
+    );
+
     private final int width;
     private final int height;
     private final ZoneId timezone;
@@ -48,7 +58,7 @@ public class XChartGeneratorImpl implements ChartGenerator {
     public XChartGeneratorImpl(ChartConfig config) {
         this.width = config.width();
         this.height = config.height();
-        Font baseFont = loadFontFromResource(config.fontPath());
+        Font baseFont = resolveChartFont(config.fontPath());
         this.timezone = config.timezone();
         // Шрифты подняли (title 22→32, tick 14→20, legend 12→17, axis 14→18):
         // график 2000×1200 px в PDF после масштабирования на страницу давал
@@ -139,22 +149,54 @@ public class XChartGeneratorImpl implements ChartGenerator {
         }
     }
 
-    private Font loadFontFromResource(String resourcePath) {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
+    /**
+     * Загружает TTF-шрифт для графиков из classpath. Сначала пробует путь из
+     * конфигурации, затем — запасные встроенные шрифты. Если ни один не найден,
+     * откатывается на системный SANS_SERIF, чтобы графики всегда рендерились.
+     * Статический и пакетный (не private) — ради прямого юнит-тестирования.
+     */
+    static Font resolveChartFont(String configuredPath) {
+        // Пробуем сначала путь из конфигурации, затем — запасные встроенные шрифты.
+        // Это позволяет приложению работать даже если в настройках указан
+        // несуществующий шрифт (например, NotoSans, которого нет в resources).
+        List<String> candidates = new ArrayList<>();
+        if (configuredPath != null && !configuredPath.isBlank()) {
+            candidates.add(configuredPath);
+        }
+        candidates.addAll(FALLBACK_FONT_PATHS);
+
+        for (String candidate : candidates) {
+            Font font = tryLoadFont(candidate);
+            if (font != null) {
+                if (!candidate.equals(configuredPath)) {
+                    log.warn("Шрифт из конфигурации '{}' не найден, использую запасной '{}'",
+                            configuredPath, candidate);
+                }
+                return font;
+            }
+        }
+        return getDefaultFallbackFont("Не найден ни один из шрифтов: " + candidates);
+    }
+
+    private static Font tryLoadFont(String resourcePath) {
+        try (InputStream is = XChartGeneratorImpl.class.getClassLoader().getResourceAsStream(resourcePath)) {
             if (is == null) {
-                return getDefaultFallbackFont("Resource not found: " + resourcePath);
+                log.debug("Шрифт '{}' не найден в resources", resourcePath);
+                return null;
             }
             Font font = Font.createFont(Font.TRUETYPE_FONT, is);
             GraphicsEnvironment.getLocalGraphicsEnvironment().registerFont(font);
             return font;
         } catch (FontFormatException e) {
-            return getDefaultFallbackFont("Invalid font format: " + resourcePath);
+            log.warn("Неверный формат шрифта '{}': {}", resourcePath, e.getMessage());
+            return null;
         } catch (IOException e) {
-            return getDefaultFallbackFont("I/O error while reading font: " + resourcePath);
+            log.warn("Ошибка чтения шрифта '{}': {}", resourcePath, e.getMessage());
+            return null;
         }
     }
 
-    private Font getDefaultFallbackFont(String reason) {
+    private static Font getDefaultFallbackFont(String reason) {
         log.warn(reason);
         return new Font(Font.SANS_SERIF, Font.PLAIN, 12);
     }

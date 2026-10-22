@@ -159,7 +159,7 @@ public class AppContainer {
                 paths.chartWidth(),
                 paths.chartHeight(),
                 paths.cacheBaseDir(),
-                paths.chartFontPath().toString(),
+                paths.chartFontPath(),
                 runtime.timezone(),
                 satellite.cloudThreshold()
         );

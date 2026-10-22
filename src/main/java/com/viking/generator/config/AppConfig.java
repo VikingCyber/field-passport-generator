@@ -109,7 +109,7 @@ public class AppConfig {
                     getString(ConfigKeys.App.Storage.Charts.PREFIX, "chart_"),
                     getInt(ConfigKeys.App.Storage.Charts.WIDTH, 2000),
                     getInt(ConfigKeys.App.Storage.Charts.HEIGHT, 1200),
-                    getPath(ConfigKeys.App.Storage.Charts.FONT_PATH, "fonts/arial.ttf")
+                    getString(ConfigKeys.App.Storage.Charts.FONT_PATH, "fonts/arial.ttf")
             );
         }
         return cachedStoragePaths;
@@ -242,8 +242,11 @@ public class AppConfig {
     public Path getPath(String key, String defaultValue) {
         String val = getString(key, defaultValue);
         Path path = Path.of(val);
-        log.info("Загрузка пути для ключа '{}': значение '{}' (существует: {})",
-                key, val, Files.exists(path));
+        // Каталоги (output/notes/charts и т.п.) создаются в рантайме при первом
+        // использовании, поэтому вывод "существует: false" на старте — это норма,
+        // а не ошибка. Подаём его как диагностику, а не как тревогу.
+        log.info("Загрузка пути для ключа '{}': значение '{}'", key, val);
+        log.debug("Путь для ключа '{}': '{}' существует на диске: {}", key, val, Files.exists(path));
         return path;
     }
 
