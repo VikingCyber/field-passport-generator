@@ -76,11 +76,7 @@ public class PassportOrchestrator {
     }
 
     public Optional<Path> getVerifiedPassportPath(String fieldId, int year) {
-        FieldPassport passport = cacheProvider.getPassportsData().stream()
-                .filter(p -> p.fieldId().equals(fieldId))
-                .filter(p -> p.generalInfo().year() == year)
-                .findFirst()
-                .orElse(null);
+        FieldPassport passport = cacheProvider.findPassport(fieldId, year).orElse(null);
         if (passport == null) {
             log.warn("Запрошен путь к паспорту, которого нет в базе данных. ID: {}, Год: {}", fieldId, year);
             return Optional.empty();
@@ -128,10 +124,7 @@ public class PassportOrchestrator {
     }
 
     public void startSingleGeneration(String fieldId, int year, boolean force) {
-        FieldPassport passport = cacheProvider.getPassportsData().stream()
-                .filter(p -> p.fieldId().equals(fieldId))
-                .filter(p -> p.generalInfo().year() == year)
-                .findFirst()
+        FieldPassport passport = cacheProvider.findPassport(fieldId, year)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Паспорт не найден в кэше для ID: " + fieldId + " Год: " + year
                 ));

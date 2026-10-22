@@ -17,6 +17,7 @@ import com.viking.generator.service.SyncService;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
@@ -59,7 +60,7 @@ class PassportOrchestratorTest {
             skipBranchReached.set(true);
             return existingPdf;
         });
-        when(cacheProvider.getPassportsData()).thenReturn(List.of(passport));
+        when(cacheProvider.findPassport("field-1", 2025)).thenReturn(Optional.of(passport));
 
         // --- ACT ---
         // «Актуализировать паспорта»: force=false, PDF уже есть → генерация должна быть пропущена

@@ -61,6 +61,46 @@ class NoteMapperTest {
     }
 
     @Test
+    @DisplayName("Заметки сортируются по убыванию даты создания, при равенстве — по убыванию даты обновления")
+    void shouldSortNewestFirstThenByUpdatedAtDesc() {
+        // --- ARRANGE ---
+        OffsetDateTime base = OffsetDateTime.of(2025, 6, 1, 12, 0, 0, 0, ZoneOffset.ofHours(3));
+        RawNote newest = new RawNote("Осмотр 21 июня", "позже всех", List.of(), List.of("1"),
+                base.plusDays(20), base.plusDays(21));
+        RawNote sameDayUpdatedNewer = new RawNote("Осмотр 1 июня, обновлён", "обновлён позже",
+                List.of(), List.of("2"), base, base.plusHours(5));
+        RawNote sameDayUpdatedOlder = new RawNote("Осмотр 1 июня", "без позднего обновления",
+                List.of(), List.of("3"), base, base.plusHours(1));
+        RawNote nullUpdated = new RawNote("Осмотр 27 мая", "без даты обновления",
+                List.of(), List.of("4"), base.minusDays(5), null);
+        NoteMapper mapper = new NoteMapper(TIMEZONE);
+
+        // --- ACT ---
+        NoteSection section = mapper.map(List.of(nullUpdated, sameDayUpdatedOlder, newest, sameDayUpdatedNewer), "2025");
+
+        // --- ASSERT ---
+        List<String> titles = section.notes().stream().map(NoteTableRow::title).toList();
+        assertEquals(
+                List.of("Осмотр 21 июня", "Осмотр 1 июня, обновлён", "Осмотр 1 июня", "Осмотр 27 мая"),
+                titles,
+                "Порядок: сначала свежие createdAt; при равном createdAt — недавно изменённый сверху; null updatedAt в конец");
+    }
+
+    @Test
+    @DisplayName("Заметка с null в updatedAt не должна вызывать NPE")
+    void shouldNotThrowOnNullUpdatedAt() {
+        // --- ARRANGE ---
+        OffsetDateTime createdAt = OffsetDateTime.of(2025, 6, 1, 12, 0, 0, 0, ZoneOffset.ofHours(3));
+        RawNote nullUpdated = new RawNote("Заголовок", "текст", List.of(), List.of("42"), createdAt, null);
+        NoteMapper mapper = new NoteMapper(TIMEZONE);
+
+        // --- ACT / ASSERT ---
+        NoteSection section = assertDoesNotThrow(() -> mapper.map(List.of(nullUpdated), "2025"));
+        assertEquals(1, section.notes().size());
+        assertNull(section.notes().get(0).updatedAt(), "updatedAt остаётся null, паспорт собирается без NPE");
+    }
+
+    @Test
     @DisplayName("Заметки с пустым или отсутствующим текстом не ломаются")
     void shouldHandleNullAndBlankText() {
         // --- ARRANGE ---

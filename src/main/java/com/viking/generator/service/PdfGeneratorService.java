@@ -12,6 +12,7 @@ import com.viking.generator.util.ImageOptimizer;
 import com.viking.generator.util.NoteImageComparators;
 import com.viking.generator.util.PassportPageEventHandler;
 import com.viking.generator.util.PdfUIHelper;
+import com.viking.generator.util.StringUtils;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
@@ -25,11 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.openpdf.text.Document;
 import org.openpdf.text.DocumentException;
 import org.openpdf.text.PageSize;
@@ -358,55 +354,10 @@ public class PdfGeneratorService implements PassportGeneratorService {
     }
 
     @Override
-    public void generateAll(List<FieldPassport> passports) {
-        if (passports == null || passports.isEmpty()) {
-            log.warn("Список полей пуст, генерировать нечего.");
-            return;
-        }
-
-        long startTime = System.currentTimeMillis();
-        int total = passports.size();
-        AtomicInteger successCount = new AtomicInteger(0);
-        AtomicInteger processedCount = new AtomicInteger(0);
-
-        log.info("==> Начало массовой генерации (всего полей: {})", passports.size());
-
-        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            List<Future<Boolean>> futures = passports.stream().map(p -> executor.submit(() -> {
-                try {
-                    generate(p);
-                    successCount.incrementAndGet();
-                    return true;
-                } catch (Exception e) {
-                    log.error("Generation failed: ", e);
-                    return false;
-                } finally {
-                    int current = processedCount.incrementAndGet();
-                    if (current % 50 == 0 || current == total) {
-                        log.info("Прогресс: {}/{} документов готово.", current, total);
-                    }
-                }
-            })).toList();
-
-            for (Future<Boolean> f : futures) {
-                try {
-                    f.get();
-                } catch (InterruptedException | ExecutionException e) {
-                    log.error("Поток завершился с критической ошибкой: {}",
-                            e.getCause().getMessage());
-                }
-            }
-            long duration = System.currentTimeMillis() - startTime;
-            log.info("==> Массовая генерация завершена! Время: {} мс. Успех {}/{}",
-                    duration, successCount.get(), total);
-        }
-    }
-
-    @Override
     public Path resolvePassportPath(FieldPassport passport) {
         String fieldName = passport.generalInfo().fieldName();
         String year = String.valueOf(passport.generalInfo().year());
-        String saveFileName = fieldName.replaceAll("[^a-zA-Zа-яА-Я0-9]", "_") + "_" + year + ".pdf";
+        String saveFileName = StringUtils.sanitizeFileName(fieldName) + "_" + year + ".pdf";
         return this.outputDir.resolve(saveFileName);
     }
 

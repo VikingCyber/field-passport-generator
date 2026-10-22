@@ -13,7 +13,6 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.util.Optional;
-import java.util.Set;
 
 public class ChartStrategy implements ImageProviderStrategy {
     private static final Logger log = LoggerFactory.getLogger(ChartStrategy.class);
@@ -40,11 +39,6 @@ public class ChartStrategy implements ImageProviderStrategy {
     @Override
     public Logger getLogger() {
         return log;
-    }
-
-    @Override
-    public void synchronize(Set<String> ids) {
-        log.info("Charts are generated on demand from local satellite metadata");
     }
 
     @Override

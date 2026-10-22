@@ -39,8 +39,12 @@ public class NoteMapper {
             return new NoteSection(Collections.emptyList(), Collections.emptyList());
         }
 
-        filteredNotes.sort(Comparator.comparing(RawNote::createdAt)
-                .thenComparing(RawNote::updatedAt).reversed());
+        // Сортировка: новые заметки сверху (createdAt DESC), при равном времени
+        // создания — недавно изменённые сверху (updatedAt DESC). updatedAt может
+        // быть null (см. проверку ниже) — нулевые значения уходят в конец.
+        filteredNotes.sort(Comparator
+                .comparing(RawNote::createdAt, Comparator.reverseOrder())
+                .thenComparing(RawNote::updatedAt, Comparator.nullsLast(Comparator.reverseOrder())));
 
         List<NoteTableRow> noteTableRows = new ArrayList<>();
         List<NoteImage> noteImages = new ArrayList<>();

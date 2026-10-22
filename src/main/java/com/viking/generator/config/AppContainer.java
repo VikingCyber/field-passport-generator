@@ -48,7 +48,7 @@ public class AppContainer {
         );
 
         InternalHttpClient metaClient = new InternalHttpClient(
-                perf.satelliteMaxConcurrent(),
+                perf.metaMaxConcurrent(),
                 agroApiConfig.recoveryTimeMs(),
                 agroApiConfig.minDownloadSizeBytes()
         );

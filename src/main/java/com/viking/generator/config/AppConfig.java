@@ -151,7 +151,8 @@ public class AppConfig {
         if (cachedAgroPerf == null) {
             cachedAgroPerf = new AgroPerformanceConfig(
                     getInt(ConfigKeys.Agro.Notes.MAX_CONCURRENT_REQUESTS, 10),
-                    getInt(ConfigKeys.Agro.Satellite.MAX_CONCURRENT_REQUESTS, 5)
+                    getInt(ConfigKeys.Agro.Satellite.MAX_CONCURRENT_REQUESTS, 5),
+                    getInt(ConfigKeys.Agro.Meta.MAX_CONCURRENT_REQUESTS, 5)
             );
         }
         return cachedAgroPerf;
