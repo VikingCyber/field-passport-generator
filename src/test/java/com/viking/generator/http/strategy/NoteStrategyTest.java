@@ -22,8 +22,11 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class NoteStrategyTest {
@@ -105,6 +108,36 @@ class NoteStrategyTest {
         assertTrue(ImageUtils.detectKind(readBytes(renamed)) == ImageUtils.ImageKind.JPEG);
     }
 
+    @Test
+    @DisplayName("Синхронизация пропускает «мёртвые» id из кэша без запроса к API")
+    void synchronizeSkipsCachedDeadIds() throws IOException {
+        Files.createDirectories(cacheDir);
+        Files.write(cacheDir.resolve(".notes-dead-ids"), List.of("z1"), StandardCharsets.UTF_8);
+
+        strategy.synchronize(Set.of("z1"));
+
+        verifyNoInteractions(loader);
+        assertFalse(Files.exists(cacheDir.resolve("notes").resolve("z1.jpg")),
+                "Для мёртвого id не должно создаваться файлов");
+    }
+
+    @Test
+    @DisplayName("Подтверждённо отсутствующие id сохраняются в кэш и пропускаются при следующем синке")
+    void deadIdsPersistedAndSkippedNextRun() {
+        when(loader.load(List.of("d1")))
+                .thenReturn(new LoadResult(Map.of(), 1, 0, 0, Map.of(), Set.of("d1")));
+
+        strategy.synchronize(Set.of("d1"));
+
+        Path deadFile = cacheDir.resolve(".notes-dead-ids");
+        assertTrue(Files.exists(deadFile), "Файл мёртвых id должен создаться");
+        assertTrue(readLines(deadFile).contains("d1"), "d1 должен попасть в кэш мёртвых id");
+
+        // повторный синк — API больше не опрашивается
+        strategy.synchronize(Set.of("d1"));
+        verify(loader, times(1)).load(anyList());
+    }
+
     private static LoadResult photo(String id, byte[] data, String ext) {
         return new LoadResult(Map.of(id, new LoadedResource(data, ext)), 1, 1, 0);
     }
@@ -112,6 +145,14 @@ class NoteStrategyTest {
     private static byte[] readBytes(Path path) {
         try {
             return Files.readAllBytes(path);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static List<String> readLines(Path path) {
+        try {
+            return Files.readAllLines(path);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

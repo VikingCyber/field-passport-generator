@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -46,7 +47,9 @@ public class NoteImageLoader {
     }
 
     public LoadResult load(Collection<String> ids) {
-        Map<String, DownloadInfo> links = fetchDownloadUrls(new ArrayList<>(ids));
+        List<String> idList = new ArrayList<>(ids);
+        LinkLookup lookup = lookupLinks(idList);
+        Map<String, DownloadInfo> links = lookup.links();
         Map<String, LoadedResource> images = new ConcurrentHashMap<>();
         AtomicInteger failedDownloads = new AtomicInteger(0);
 
@@ -72,10 +75,21 @@ public class NoteImageLoader {
             log.warn("Download issues: {} files failed to download", failedDownloads.get());
         }
 
-        return new LoadResult(images, ids.size(), links.size(), failedDownloads.get());
+        return new LoadResult(images, idList.size(), links.size(), failedDownloads.get(),
+                Map.of(), lookup.confirmedAbsent());
     }
 
     public Map<String, DownloadInfo> fetchDownloadUrls(List<String> ids) {
+        return lookupLinks(new ArrayList<>(ids)).links();
+    }
+
+    /**
+     * Запрашивает у API ссылки на вложения и заодно определяет, какие из запрошенных id
+     * подтверждённо отсутствуют (ответ 200 + success:true, но записи с id нет в data).
+     * Сетевые ошибки и не-200 в «подтверждённое отсутствие» НЕ попадают — их нельзя
+     * кэшировать как «мёртвые», они могут быть временными.
+     */
+    private LinkLookup lookupLinks(List<String> ids) {
         try {
             String jsonBody = objectMapper.writeValueAsString(Map.of("ids", ids));
 
@@ -90,20 +104,20 @@ public class NoteImageLoader {
             HttpResponse<String> response = internalClient.sendRequest(request, HttpResponse.BodyHandlers.ofString());
 
             if (response != null && response.statusCode() == 200) {
-                return parseLinkResponse(response.body());
+                return parseLinkResponse(response.body(), ids);
             }
         } catch (Exception e) {
             log.error("Error executing request: {}", e.getMessage());
         }
-        return Map.of();
+        return LinkLookup.empty();
     }
 
-    private Map<String, DownloadInfo> parseLinkResponse(String body) throws JsonProcessingException {
+    private LinkLookup parseLinkResponse(String body, List<String> requested) throws JsonProcessingException {
         AttachmentResponse response = objectMapper.readValue(body, AttachmentResponse.class);
         if (response == null || !response.success() || response.data() == null) {
-            return Map.of();
+            return LinkLookup.empty();
         }
-        return response.data().stream()
+        Map<String, DownloadInfo> links = response.data().stream()
                 .filter(d -> d.meta() != null && d.meta().resourceUrl() != null)
                 .collect(Collectors.toMap(
                         Data::id,
@@ -113,6 +127,17 @@ public class NoteImageLoader {
                                 ),
                                 (existing, replacement) -> existing
                 ));
+        Set<String> confirmedAbsent = requested.stream()
+                .filter(id -> !links.containsKey(id))
+                .collect(Collectors.toSet());
+        return new LinkLookup(links, confirmedAbsent);
+    }
+
+    /** Результат разрешения ссылок: найденные ссылки + подтверждённо отсутствующие id. */
+    private record LinkLookup(Map<String, DownloadInfo> links, Set<String> confirmedAbsent) {
+        static LinkLookup empty() {
+            return new LinkLookup(Map.of(), Set.of());
+        }
     }
 
     public byte[] downloadBytes(String path) {
