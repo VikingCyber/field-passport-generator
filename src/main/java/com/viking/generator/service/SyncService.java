@@ -135,6 +135,10 @@ public class SyncService {
             cacheService.fillImages(List.of(passport.indexChart()), force);
         }
 
+        if (passport.fieldMap() != null) {
+            cacheService.fillImages(List.of(passport.fieldMap()), force);
+        }
+
     }
 
     /**
@@ -178,6 +182,7 @@ public class SyncService {
                         .map(RawFieldData::fieldId)
                         .collect(Collectors.toSet());
                 cacheService.sync(allIds, SourceType.SATELLITE);
+                cacheService.sync(allIds, SourceType.FIELD_MAP);
             }
         } catch (IOException e) {
             log.error("Критическая ошибка чтения файла спутников: {}", fieldsJsonPath, e);

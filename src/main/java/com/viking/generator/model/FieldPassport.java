@@ -1,6 +1,7 @@
 package com.viking.generator.model;
 
 import com.viking.generator.model.media.ChartImage;
+import com.viking.generator.model.media.FieldMapImage;
 import com.viking.generator.model.media.SatelliteImage;
 import com.viking.generator.model.sections.NoteSection;
 import com.viking.generator.model.sections.GeneralInfo;
@@ -17,8 +18,25 @@ public record FieldPassport(
     NoteSection notesSection,
     ChartImage indexChart,
     List<SatelliteImage> satelliteImages,
-    List<TechJournalTableRow> resources
+    List<TechJournalTableRow> resources,
+    FieldMapImage fieldMap
 ) {
+    /**
+     * Конструктор для обратной совместимости: паспорт без снимка поля с карты.
+     */
+    public FieldPassport(
+        String fieldId,
+        GeneralInfo generalInfo,
+        List<OperationTableRow> operations,
+        NoteSection notesSection,
+        ChartImage indexChart,
+        List<SatelliteImage> satelliteImages,
+        List<TechJournalTableRow> resources
+    ) {
+        this(fieldId, generalInfo, operations, notesSection, indexChart,
+                satelliteImages, resources, null);
+    }
+
     public void clearImageData() {
         if (this.satelliteImages != null) {
             this.satelliteImages.stream()
@@ -27,6 +45,9 @@ public record FieldPassport(
         }
         if (this.indexChart != null) {
             this.indexChart.setImageBytes(null);
+        }
+        if (this.fieldMap != null) {
+            this.fieldMap.setImageBytes(null);
         }
         if (this.notesSection != null && this.notesSection.images() != null) {
             this.notesSection.images().stream()

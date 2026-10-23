@@ -15,7 +15,9 @@ public record StoragePathsConfig(
         String chartPrefix,
         int chartWidth,
         int chartHeight,
-        String chartFontPath
+        String chartFontPath,
+        String mapsDir,
+        String mapExtension
 ) {
     public Path getNotesPath() {
         return cacheBaseDir.resolve(notesDir);
@@ -23,6 +25,10 @@ public record StoragePathsConfig(
 
     public Path getChartsPath() {
         return cacheBaseDir.resolve(chartsDir);
+    }
+
+    public Path getMapsPath() {
+        return cacheBaseDir.resolve(mapsDir);
     }
 
     public Path getFieldDir(String fieldId) {

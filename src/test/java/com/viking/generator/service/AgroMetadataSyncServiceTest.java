@@ -98,7 +98,8 @@ public class AgroMetadataSyncServiceTest {
                 tempDir.resolve("units.json"),
                 tempDir.resolve("notes.json"),
                 tempDir.resolve("fieldData.json"),
-                tempDir.resolve("operations.json")
+                tempDir.resolve("operations.json"),
+                tempDir.resolve("kml")
         );
 
         AgroMetadataSyncService service = new AgroMetadataSyncService(

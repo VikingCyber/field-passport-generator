@@ -7,5 +7,6 @@ public record LocalFilesConfig(
         Path operationsPath,
         Path tmcPath,
         Path notesPath,
-        Path unitsPath
+        Path unitsPath,
+        Path kmlDir
 ) {}

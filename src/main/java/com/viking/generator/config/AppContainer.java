@@ -9,6 +9,7 @@ import com.viking.generator.http.InternalHttpClient;
 import com.viking.generator.http.NoteImageLoader;
 import com.viking.generator.http.SatelliteImageLoader;
 import com.viking.generator.http.strategy.ChartStrategy;
+import com.viking.generator.http.strategy.FieldMapStrategy;
 import com.viking.generator.http.strategy.NoteStrategy;
 import com.viking.generator.http.strategy.SatelliteStrategy;
 import com.viking.generator.mapper.*;
@@ -16,6 +17,7 @@ import com.viking.generator.service.*;
 import com.viking.generator.service.orchestration.PassportOrchestrator;
 import com.viking.generator.util.HeicConverter;
 import com.viking.generator.util.JsonDataParser;
+import com.viking.generator.util.KmlGeometryParser;
 import java.util.List;
 
 public class AppContainer {
@@ -57,7 +59,8 @@ public class AppContainer {
         NoteStrategy noteStrategy = createNoteStrategy(paths, agroApiConfig, noteClient);
         SatelliteStrategy satelliteStrategy = createSatelliteStrategy(paths, agroApiConfig, satellite, satelliteClient, jsonParser);
         ChartStrategy chartStrategy = createChartStrategy(paths, satellite, jsonParser, runtime);
-
+        FieldMapStrategy fieldMapStrategy = createFieldMapStrategy(paths, agroApiConfig, filesConfig,
+                metaClient);
 
 
         // ===== 5. Data Aggregation & Provider =====
@@ -85,7 +88,7 @@ public class AppContainer {
 
         ImageCacheService imageCache = new ImageCacheService(
                 paths.cacheBaseDir(),
-                List.of(noteStrategy, satelliteStrategy, chartStrategy)
+                List.of(noteStrategy, satelliteStrategy, chartStrategy, fieldMapStrategy)
         );
 
         this.syncService = new SyncService(
@@ -166,6 +169,15 @@ public class AppContainer {
         ChartGenerator chartGenerator = new XChartGeneratorImpl(chartConfig);
         ChartMapper chartMapper = new ChartMapper(satellite.cloudThreshold());
         return new ChartStrategy(chartGenerator, chartConfig, jsonParser, chartMapper);
+    }
+
+    private FieldMapStrategy createFieldMapStrategy(StoragePathsConfig paths,
+            AgroApiConfig agro, LocalFilesConfig filesConfig, InternalHttpClient client) {
+        KmlSyncService kmlSync = new KmlSyncService(client, agro, filesConfig.kmlDir());
+        FieldMapRenderer renderer = new FieldMapRenderer(new FieldMapRenderer.OsmTileFetcher());
+        KmlGeometryParser geometryParser = new KmlGeometryParser();
+        return new FieldMapStrategy(kmlSync, geometryParser, renderer,
+                paths.cacheBaseDir(), paths.mapsDir(), paths.mapExtension());
     }
 
     private FieldDataAggregator createAggregator(AppRuntimeConfig runtime, SatelliteConfig satellite) {
