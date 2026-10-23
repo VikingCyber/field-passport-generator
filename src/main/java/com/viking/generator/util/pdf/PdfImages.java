@@ -74,12 +74,17 @@ public final class PdfImages {
 
     /**
      * Ячейка фото в сетке «3.2 Фотографии»: уменьшенное фото по центру квадратной
-     * ячейки 230 pt и поверх — подпись с ID комплекса (белый ореол вокруг текста,
+     * ячейки 208 pt и поверх — подпись с ID комплекса (белый ореол вокруг текста,
      * чтобы надпись читалась на любом фоне фото).
+     * <p>
+     * 208 pt — максимальный размер блока, при котором на альбомную страницу с учётом
+     * шапки и подвала помещаются два ряда по три фото (два ряда дают 416 pt против
+     * 447.6 pt полезной высоты). Было 230 pt — второй ряд не влезал, и 6 фото
+     * разъезжались на две страницы.
      */
     public static PdfPCell createPhotoBlock(PdfWriter writer, byte[] imageBytes, String complexId) {
         PdfPCell cell = new PdfPCell();
-        float size = 230f;
+        float size = 208f;
         cell.setFixedHeight(size);
         cell.setHorizontalAlignment(Element.ALIGN_CENTER);
         cell.setVerticalAlignment(Element.ALIGN_MIDDLE);

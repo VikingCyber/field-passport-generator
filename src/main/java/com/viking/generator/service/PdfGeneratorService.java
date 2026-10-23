@@ -223,7 +223,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
             PdfWriter writer = PdfWriter.getInstance(document, bos);
             writer.setPageEvent(new PassportPageEventHandler());
             document.open();
-            addFrontMatter(document, placeholderPages());
+            addFrontMatter(document, placeholderPages(), null);
             fillSections(document, writer, passport, recorder);
             log.debug("Черновой проход завершён. Страниц: {}", writer.getCurrentPageNumber());
         }
@@ -233,12 +233,15 @@ public class PdfGeneratorService implements PassportGeneratorService {
      * Шапка и содержание. Вызывается в обоих проходах, поэтому черновик занимает
      * столько же места, сколько финальный файл, и номера разделов из черновика
      * корректны без сдвига. После содержания — принудительный разрыв страницы:
-     * раздел 1 всегда начинается с новой страницы.
+     * раздел 1 всегда начинается с новой страницы. Если передан writer — строки
+     * содержания делаются кликабельными (внутренние ссылки на страницы разделов),
+     * иначе (черновик) ссылки не создаются, т.к. номера ещё заглушечные.
      */
-    private static void addFrontMatter(Document document, Map<String, Integer> pages)
-            throws DocumentException {
+    private static void addFrontMatter(Document document, Map<String, Integer> pages,
+            PdfWriter writer) throws DocumentException {
         document.add(PdfTypography.createPassportTitle());
-        pages.forEach((title, page) -> document.add(PdfToc.createTocLine(title, page)));
+        pages.forEach((title, page) -> document.add(
+                PdfToc.createTocLine(title, page, writer)));
         document.newPage();
     }
 
@@ -270,7 +273,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
             document.open();
             log.debug("PDF документ открыт (финальный проход)");
 
-            addFrontMatter(document, recorder.sectionTitles());
+            addFrontMatter(document, recorder.sectionTitles(), writer);
             fillSections(document, writer, passport, null);
         }
     }
