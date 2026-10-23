@@ -28,6 +28,9 @@ public final class PdfToc {
     private static final float TOC_TEXT_WIDTH =
             PageSize.A4.getWidth() - PdfTypography.MARGIN_LEFT - PdfTypography.MARGIN_RIGHT;
 
+    /** Отступ после строки содержания — воздух между строками оглавления. */
+    private static final float TOC_LINE_SPACING = 9f;
+
     private PdfToc() {
         throw new UnsupportedOperationException("Utility class, constructors are forbidden");
     }
@@ -61,7 +64,7 @@ public final class PdfToc {
         line.setTotalWidth(TOC_TEXT_WIDTH);
         line.setHorizontalAlignment(Element.ALIGN_LEFT);
         // Между строками содержания — увеличенный отступ (как в образце).
-        line.setSpacingAfter(5f);
+        line.setSpacingAfter(TOC_LINE_SPACING);
         try {
             // Доли ширины в процентах от общей ширины таблицы: сумма ровно 100.
             line.setWidths(new float[] {
