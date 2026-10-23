@@ -6,6 +6,7 @@ import com.viking.generator.data.dto.*;
 import com.viking.generator.mapper.*;
 import com.viking.generator.model.*;
 import com.viking.generator.model.media.ChartImage;
+import com.viking.generator.model.media.FieldMapImage;
 import com.viking.generator.model.media.SatelliteImage;
 import com.viking.generator.model.sections.CropRotation;
 import com.viking.generator.model.sections.NoteSection;
@@ -151,6 +152,8 @@ public class FieldDataAggregator {
                 passportYear);
         ChartImage indexChart = new ChartImage(String.valueOf(primaryFieldId), passportYear,
                 chartTitle, new ArrayList<>());
+        FieldMapImage fieldMap = new FieldMapImage(String.valueOf(primaryFieldId),
+                primary.plotName());
 
         List<CropRotation> rotations = group.stream()
                 .map(FieldDataAggregator::toCropRotation)
@@ -163,7 +166,8 @@ public class FieldDataAggregator {
                 noteSection,
                 satelliteImages,
                 indexChart,
-                techJournalTableRows
+                techJournalTableRows,
+                fieldMap
         );
     }
 

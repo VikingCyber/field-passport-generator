@@ -45,6 +45,11 @@ public final class ConfigKeys {
                 public static final String HEIGHT = "app.storage.charts.height";
                 public static final String FONT_PATH = "app.storage.charts.font-path";
             }
+
+            public static final class Maps {
+                public static final String DIR = "app.storage.maps.dir";
+                public static final String EXTENSION = "app.storage.maps.extension";
+            }
         }
 
         public static final class LocalFiles {
@@ -53,6 +58,7 @@ public final class ConfigKeys {
             public static final String TMC = "app.local-files.tmc-path";
             public static final String NOTES = "app.local-files.notes-path";
             public static final String UNITS = "app.local-files.units-path";
+            public static final String KML_DIR = "app.local-files.kml-dir";
         }
     }
 

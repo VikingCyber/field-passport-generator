@@ -3,6 +3,7 @@ package com.viking.generator.mapper;
 import com.viking.generator.data.dto.RawFieldData;
 import com.viking.generator.model.*;
 import com.viking.generator.model.media.ChartImage;
+import com.viking.generator.model.media.FieldMapImage;
 import com.viking.generator.model.media.SatelliteImage;
 import com.viking.generator.model.sections.CropRotation;
 import com.viking.generator.model.sections.NoteSection;
@@ -30,7 +31,8 @@ public class PassportMapper {
     public static FieldPassport mapToDomain(RawFieldData raw, List<CropRotation> rotations,
                                             List<OperationTableRow> operations,
                                             NoteSection noteSection, List<SatelliteImage> satelliteImages,
-                                            ChartImage chartImage, List<TechJournalTableRow> techJournal) {
+                                            ChartImage chartImage, List<TechJournalTableRow> techJournal,
+                                            FieldMapImage fieldMap) {
         String rawCrop = raw.crop();
 
         int year = YearUtils.extractYear(rawCrop);
@@ -56,7 +58,8 @@ public class PassportMapper {
                 noteSection != null ? noteSection : new NoteSection(Collections.emptyList(), Collections.emptyList()),
                 chartImage,
                 satelliteImages != null ? satelliteImages : Collections.emptyList(),
-                techJournal != null ? techJournal : Collections.emptyList()
+                techJournal != null ? techJournal : Collections.emptyList(),
+                fieldMap
         );
     }
 }

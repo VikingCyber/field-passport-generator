@@ -13,6 +13,7 @@ import com.viking.generator.util.pdf.PdfSection3Notes;
 import com.viking.generator.util.pdf.PdfSection4Indexes;
 import com.viking.generator.util.pdf.PdfSection5Satellites;
 import com.viking.generator.util.pdf.PdfSection6Resources;
+import com.viking.generator.util.pdf.PdfSectionFieldMap;
 import com.viking.generator.util.pdf.PdfSectionRenderer;
 import com.viking.generator.util.pdf.PdfToc;
 import com.viking.generator.util.pdf.PdfTypography;
@@ -48,6 +49,7 @@ public class PdfGeneratorService implements PassportGeneratorService {
      */
     private static final List<PdfSectionRenderer> SECTIONS = List.of(
             new PdfSection1GeneralInfo(),
+            new PdfSectionFieldMap(),
             new PdfSection2Operations(),
             new PdfSection3Notes(),
             new PdfSection4Indexes(),

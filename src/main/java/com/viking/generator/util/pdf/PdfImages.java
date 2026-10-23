@@ -1,6 +1,7 @@
 package com.viking.generator.util.pdf;
 
 import com.viking.generator.model.media.ChartImage;
+import com.viking.generator.model.media.FieldMapImage;
 import com.viking.generator.model.media.SatelliteImage;
 import com.viking.generator.util.ImageOptimizer;
 import java.awt.Color;
@@ -59,6 +60,12 @@ public final class PdfImages {
      * ≈399 pt — берём с запасом 395 pt.
      */
     private static final float CHART_IMG_MAX_HEIGHT = 395f;
+    /**
+     * Максимальная высота снимка поля с карты, pt. Кадр снимка 1600×767 (≈2.09:1),
+     * поэтому при вписывании в ширину текстовой области (~714 pt) его высота ≈342 pt
+     * и с запасом умещается вместе с заголовком в полезную высоту альбомной страницы.
+     */
+    private static final float FIELD_MAP_IMG_MAX_HEIGHT = 380f;
     /**
      * Ширина текстовой области альбомной страницы: 842 − 3 см − 1.5 см.
      * Считается от публичных отступов PdfTypography.
@@ -221,6 +228,46 @@ public final class PdfImages {
             } catch (Exception e) {
                 log.error("Error rendering chartImage: {}", e.getMessage());
                 cell.addElement(new Phrase("Ошибка отрисовки графика", PdfTypography.FONT_TEXT));
+            }
+        }
+        table.addCell(cell);
+        document.add(table);
+    }
+
+    /**
+     * Снимок поля с карты в keepTogether-таблице вместе с заголовком раздела.
+     * Аналог {@link #addChartImage(Document, ChartImage)}, но для снимка поля:
+     * изображение не сжимается, только вписывается в текстовую область альбомной
+     * страницы. Если снимка нет — placeholder «нет данных».
+     */
+    public static void addFieldMapImage(Document document, FieldMapImage fieldMap,
+            String sectionTitle) {
+        PdfPTable table = new PdfPTable(1);
+        table.setWidthPercentage(100f);
+        table.setSpacingBefore(20f);
+        table.setKeepTogether(true);
+
+        PdfPCell cell = new PdfPCell();
+        cell.setBorder(Rectangle.NO_BORDER);
+        cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+
+        Paragraph title = PdfTypography.createSectionTitle(sectionTitle);
+        title.setAlignment(Element.ALIGN_LEFT);
+        cell.addElement(title);
+
+        if (fieldMap == null || fieldMap.getImageBytes() == null) {
+            cell.addElement(new Phrase(PdfTypography.NO_DATA, PdfTypography.FONT_TEXT));
+        } else {
+            try {
+                Image img = Image.getInstance(fieldMap.getImageBytes());
+                float maxW = Math.min(LANDSCAPE_TEXT_WIDTH, img.getWidth());
+                float maxH = Math.min(FIELD_MAP_IMG_MAX_HEIGHT, img.getHeight());
+                img.scaleToFit(maxW, maxH);
+                img.setAlignment(Image.ALIGN_CENTER);
+                cell.addElement(img);
+            } catch (Exception e) {
+                log.error("Ошибка вставки снимка поля с карты: {}", e.getMessage());
+                cell.addElement(new Phrase("Ошибка отрисовки снимка поля", PdfTypography.FONT_TEXT));
             }
         }
         table.addCell(cell);

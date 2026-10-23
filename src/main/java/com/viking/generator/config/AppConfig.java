@@ -109,7 +109,9 @@ public class AppConfig {
                     getString(ConfigKeys.App.Storage.Charts.PREFIX, "chart_"),
                     getInt(ConfigKeys.App.Storage.Charts.WIDTH, 2000),
                     getInt(ConfigKeys.App.Storage.Charts.HEIGHT, 1200),
-                    getString(ConfigKeys.App.Storage.Charts.FONT_PATH, "fonts/arial.ttf")
+                    getString(ConfigKeys.App.Storage.Charts.FONT_PATH, "fonts/arial.ttf"),
+                    getString(ConfigKeys.App.Storage.Maps.DIR, "maps"),
+                    getString(ConfigKeys.App.Storage.Maps.EXTENSION, "png")
             );
         }
         return cachedStoragePaths;
@@ -122,7 +124,8 @@ public class AppConfig {
                     getPath(ConfigKeys.App.LocalFiles.OPERATIONS, "data/operationsData.json"),
                     getPath(ConfigKeys.App.LocalFiles.TMC, "data/tmc.json"),
                     getPath(ConfigKeys.App.LocalFiles.NOTES, "data/notesData.json"),
-                    getPath(ConfigKeys.App.LocalFiles.UNITS, "data/units.json")
+                    getPath(ConfigKeys.App.LocalFiles.UNITS, "data/units.json"),
+                    getPath(ConfigKeys.App.LocalFiles.KML_DIR, "data/kml")
             );
         }
         return cachedLocalFiles;
