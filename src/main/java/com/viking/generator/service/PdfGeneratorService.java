@@ -255,7 +255,9 @@ public class PdfGeneratorService implements PassportGeneratorService {
     private static Map<String, Integer> placeholderPages() {
         Map<String, Integer> pages = new LinkedHashMap<>();
         for (PdfSectionRenderer section : SECTIONS) {
-            pages.put(section.title(), 0);
+            if (section.inToc()) {
+                pages.put(section.title(), 0);
+            }
         }
         return pages;
     }

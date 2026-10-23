@@ -15,9 +15,17 @@ public interface PdfSectionRenderer {
     /** Название раздела — единый источник для заголовка и содержания. */
     String title();
 
+    /**
+     * Участвует ли раздел в содержании. Снимок поля с картой — не раздел,
+     * поэтому исключён из оглавления ({@code false}), но рендерится в документ.
+     */
+    default boolean inToc() {
+        return true;
+    }
+
     /** Отмечает страницу раздела, если идёт черновой проход (recorder != null). */
     default void markSection(SectionPageRecorder recorder, PdfWriter writer) {
-        if (recorder != null) {
+        if (recorder != null && inToc()) {
             recorder.mark(title(), writer);
         }
     }

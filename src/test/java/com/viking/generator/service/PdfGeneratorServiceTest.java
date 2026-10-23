@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.viking.generator.model.FieldPassport;
 import com.viking.generator.model.sections.GeneralInfo;
 import com.viking.generator.model.sections.NoteSection;
+import com.viking.generator.util.pdf.PdfSectionFieldMap;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -58,6 +59,11 @@ class PdfGeneratorServiceTest {
             assertTrue(page1.contains("Раздел 4. Индексы"), page1);
             assertTrue(page1.contains("Раздел 5. Спутниковые снимки NDVI"), page1);
             assertTrue(page1.contains("Раздел 6. Работающие механизаторы"), page1);
+
+            // Карта — не раздел: её строки НЕТ в содержании, хотя заголовок
+            // «Контур поля на карте» присутствует на странице самой карты.
+            assertFalse(page1.contains(PdfSectionFieldMap.TITLE), page1);
+            assertTrue(all.contains(PdfSectionFieldMap.TITLE), all);
 
             // Кликабельное содержание: каждая строка — внутренняя ссылка на страницу раздела.
             long links = doc.getPage(0).getAnnotations().stream()
