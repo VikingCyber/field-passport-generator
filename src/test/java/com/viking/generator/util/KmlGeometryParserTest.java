@@ -9,7 +9,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -109,6 +116,36 @@ class KmlGeometryParserTest {
         KmlGeometryParser parser = new KmlGeometryParser();
         assertEquals(Optional.empty(), parser.parse(tempDir.resolve("nope.kml")));
         assertEquals(Optional.empty(), parser.parse("  "));
+    }
+
+    @Test
+    @DisplayName("Параллельный разбор из множества потоков: общий парсер потокобезопасен")
+    void shouldParseConcurrently() throws Exception {
+        KmlGeometryParser parser = new KmlGeometryParser();
+        Path kml = extractFixture();
+
+        // Запускаем разбор одного и того же файла одновременно из 8 потоков:
+        // общий DocumentBuilder в поле экземпляра вызывал гонку XERCES
+        // (FWK005 parse may not be called while parsing), из-за чего в батче
+        // снимки многих полей (в т.ч. МН02) не рендерились.
+        int threads = 8;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        try {
+            List<Callable<FieldGeometry>> tasks = new ArrayList<>();
+            for (int i = 0; i < threads; i++) {
+                tasks.add(() -> parser.parse(kml).orElseThrow());
+            }
+            List<Future<FieldGeometry>> futures = new ArrayList<>();
+            tasks.forEach(task -> futures.add(pool.submit(task)));
+
+            for (Future<FieldGeometry> future : futures) {
+                FieldGeometry geometry = future.get();
+                assertEquals("ПС10-01", geometry.name());
+                assertEquals(35, geometry.rings().size());
+            }
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     /** Копирует реальный KML ПС10-01 (id 394851) из test/resources во временный каталог. */

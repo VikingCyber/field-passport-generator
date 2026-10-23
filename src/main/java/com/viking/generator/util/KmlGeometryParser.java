@@ -35,15 +35,18 @@ public class KmlGeometryParser {
     /** Полуширина мира Web Mercator, м (соответствует 180° долготы). */
     private static final double WORLD_HALF_WIDTH = 20037508.342789244;
 
-    private final DocumentBuilder documentBuilder;
-
-    public KmlGeometryParser() {
+    /**
+     * Создаёт настроенный {@link DocumentBuilder}. {@code DocumentBuilder} не
+     * потокобезопасен, а разбор KML идёт параллельно в virtual-потоках генерации,
+     * поэтому билдер создаётся заново на каждый вызов {@link #parse(InputStream)}.
+     */
+    private static DocumentBuilder newDocumentBuilder() {
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(true);
             factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
             factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-            this.documentBuilder = factory.newDocumentBuilder();
+            return factory.newDocumentBuilder();
         } catch (ParserConfigurationException e) {
             throw new IllegalStateException("Не удалось создать парсер XML", e);
         }
@@ -78,7 +81,7 @@ public class KmlGeometryParser {
 
     private Optional<FieldGeometry> parse(InputStream is) {
         try {
-            Document doc = documentBuilder.parse(is);
+            Document doc = newDocumentBuilder().parse(is);
             Element root = doc.getDocumentElement();
 
             // Placemark может лежать на любом уровне (Document/Folder) — ищем рекурсивно.
