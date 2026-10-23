@@ -80,6 +80,57 @@ class FieldMapRendererTest {
                 () -> renderer.renderPng(List.of(), ""));
     }
 
+    @Test
+    @DisplayName("Вытянутое поле: контур не обрезается по длинной оси кадра")
+    void shouldNotCropElongatedField() throws Exception {
+        FieldMapRenderer renderer = new FieldMapRenderer(solidTiles());
+
+        // Поле 4000×50 м в Web Mercator — сильно вытянуто по горизонтали.
+        // Раньше зум выбирался так, что шаг оказывался меньше допустимого:
+        // охват кадра (1600 px * res) становился < 4000 м, и контур вылезал
+        // за границы снимка. Теперь зум берётся с запасом — контур внутри.
+        double cx = 10381800.0;
+        double cy = 7639147.0;
+        double hw = 2000.0;
+        double hh = 25.0;
+        List<double[][]> rings = List.<double[][]>of(new double[][] {
+                {cx - hw, cy - hh}, {cx + hw, cy - hh},
+                {cx + hw, cy + hh}, {cx - hw, cy + hh}, {cx - hw, cy - hh}
+        });
+
+        byte[] png = renderer.renderPng(rings, "Вытянутое поле");
+
+        BufferedImage image = ImageIO.read(new ByteArrayInputStream(png));
+        assertNotNull(image, "PNG должен корректно читаться ImageIO");
+        assertPngDimensions(png, 1600, 767);
+
+        // Контур не должен касаться ни одной границы кадра: проверяем периметр
+        // (крайняя колонка слева/справа и крайняя строка сверху/снизу).
+        boolean contourAtEdge = false;
+        for (int y = 0; y < image.getHeight(); y++) {
+            if (isContourColor(image, 0, y) || isContourColor(image, image.getWidth() - 1, y)) {
+                contourAtEdge = true;
+            }
+        }
+        for (int x = 0; x < image.getWidth(); x++) {
+            if (isContourColor(image, x, 0) || isContourColor(image, x, image.getHeight() - 1)) {
+                contourAtEdge = true;
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertFalse(contourAtEdge,
+                "Контур вытянутого поля не должен касаться границ кадра");
+    }
+
+    /** Красноватые пиксели контура (обводка поля на снимке). */
+    private boolean isContourColor(BufferedImage image, int x, int y) {
+        Color c = new Color(image.getRGB(x, y));
+        int r = c.getRed();
+        int g = c.getGreen();
+        int b = c.getBlue();
+        // Контур (198,40,40) и (120,15,15): красный доминирует, зелёный и синий малы.
+        return r > 100 && g < 90 && b < 90;
+    }
+
     private void assertPngDimensions(byte[] png, int width, int height) throws IOException {
         BufferedImage image = ImageIO.read(new ByteArrayInputStream(png));
         assertNotNull(image, "PNG должен корректно читаться ImageIO");

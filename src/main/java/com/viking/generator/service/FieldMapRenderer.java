@@ -99,10 +99,15 @@ public class FieldMapRenderer {
         double fW = maxX - minX;
         double fH = maxY - minY;
 
+        // Минимально допустимый шаг (м/px): при таком разрешении поле с запасом
+        // PAD ровно вписывается в кадр. Шаг меняется степенями двойки, поэтому
+        // спускаемся по зумам, пока СЛЕДУЮЩИЙ шаг не станет меньше допустимого, —
+        // иначе фактический шаг оказывается меньше neededRes, охват кадра меньше
+        // поля, и у вытянутых полей контур обрезается по длинной оси.
         double neededRes = Math.max(fW * PAD / CANVAS_WIDTH, fH * PAD / CANVAS_HEIGHT);
         int z = 0;
         double res = RES0;
-        while (res > neededRes && z < MAX_ZOOM) {
+        while (res / 2 >= neededRes && z < MAX_ZOOM) {
             res /= 2;
             z++;
         }
